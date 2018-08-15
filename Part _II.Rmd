@@ -1,0 +1,156 @@
+---
+title: "Phase II Data Cleaning, Quality Enhancing and Feature Enginering"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dataset
+
+In phase one of our project, we extracted data from NoBroker.in. In this phase we will be processing one of the most important step in machine learning i.e Data cleaning, Data Exploring and Feature Enginerring.
+
+Old saying - Data scientists spend 80% of their time preparing and cleaning their data. They spend the other 20% of their time complaining about preparing and cleaning their data.
+
+## Read data
+
+The scrapped data can be downloaded [from here](). 
+
+```{r read_data, message=FALSE, warning=FALSE}
+
+library(tidyverse); library(plotly); library(DT); library(broom)
+
+nb_data_csv <- read_csv("nb_data.csv")
+
+```
+
+## Clean Data
+
+First let us remove unwanted variables from the dataset. These variables are either redundunt such as in LoanVerified or character values such as Address. 
+
+There are only 46 entries for 4+ Bedrooms, since we cannot clearly identify the number of Bedrooms for these entries and they represent only 0.68% of the total data, these can be safely removed.
+
+```{r}
+
+nb_data <- nb_data_csv %>% 
+  select(-Measure, -Verified, -LoanVerified, -SaleType, -Address, -PostedTime, -ShortAddress, -Area2, -MonthlyEMI, -propid, -HouseType, -FloorType2) %>% 
+  filter(Bedrooms != "4+ bedrooms")
+  
+```
+
+Convert character columns Price, Bedrooms, Bathrooms etc into numeric columns
+
+
+```{r}
+
+nb_data <- nb_data %>% 
+  separate(Price, c("Amt", "word"), sep = " ") %>% 
+  mutate(wordtonum = 
+           case_when(
+             word == "Crores" ~ 10000000,
+             word == "Crore" ~ 10000000,
+             word == "Lacs" ~ 100000,
+             word == "K" ~ 1000
+           )) %>% 
+  mutate(HousePrice = as.numeric(Amt) * wordtonum) %>% 
+  separate(Bedrooms , c("NoofBedrooms", "Delete1"), sep = " ") %>% 
+  separate(Bathrooms , c("NoofBathrooms", "Delete2"), sep = " ") %>% 
+  separate(Balconies, c("NoofBalconies", "Delete3"), sep = " ") %>%
+  separate(Maintanance, c("Maint_sqft", "Delete4", "Delete5"), sep = " ") %>% 
+  separate(FloorOn, c("Delete6", "OnFloor", "Delete7", "NooffloorsinBldg"), sep = " ") %>% 
+  select(-Amt, -word, -starts_with("Delete"), - wordtonum) %>% 
+  mutate_at(c("NoofBedrooms", "NoofBathrooms", "NoofBalconies", "Maint_sqft", "OnFloor", "NooffloorsinBldg"), 
+            as.numeric)
+  
+
+```
+
+## Feature Enginerring
+
+Lets scale price and maintainance on '000 scale.
+
+
+
+```{r}
+nb_data <- nb_data %>% 
+  mutate(HousePriceinK = HousePrice/ 1000) %>% 
+  mutate(Maint_sqft = Maint_sqft * Area) %>% 
+  select(-HousePrice) %>% 
+  mutate_at(c("Negotiable", "FloorType", "Bldgtype", "Age", "OwnedBy", "Furnished", "Facing", "Parking", "PowerBackup", "WaterSupply"), as.factor)
+```
+
+
+## Outilers
+
+```{r}
+nb_data %>% 
+  plot_ly(x = ~Age, y = ~Area) %>% 
+  add_boxplot()
+  
+```
+
+From the visualization, we can confirm that there is an outlier in the data. The House Area of the outlier is 12,83,800, well that almost one third of India. Lets remove it and redraw the plot.
+
+```{r}
+nb_data <- nb_data %>% 
+  filter(Area < 10000) 
+
+nb_data%>% 
+  plot_ly(x = ~Age, y = ~Area) %>% 
+  add_boxplot()
+  
+```
+
+There is still an outlier on the chart. Lets have a close look at it.
+
+```{r}
+nb_data %>% 
+  select(Area, NoofBedrooms, NoofBathrooms, NooffloorsinBldg) %>% 
+  arrange(desc(Area)) %>% 
+  slice(1) %>%
+  t() %>% as.data.frame() %>% 
+  rownames_to_column() %>% as.tibble() %>% 
+  rename("Details of Outlier" = "rowname", "Values" = "V1") %>% 
+  datatable(class = 'cell-border stripe', rownames = FALSE, options = list(dom = "t"))
+
+```
+
+Ah! A 14 stored bldg having an area of 9000 with 2 Bedrooms, though it is possible but it seems suspisious. Since we have enough data (considering this project is at a company where data flow is adequate), we will remove this entry as well.
+
+```{r}
+nb_data <- nb_data %>% 
+  filter(Area < 8999)
+```
+
+
+## Missing Values
+
+By using summary we see that
+
+```{r}
+nb_data %>% 
+  select("FloorType", "Facing", "PowerBackup", "WaterSupply") %>% 
+  summary() %>% 
+  tidy() %>% 
+  filter(str_detect(Freq, "NA's")) %>% 
+  select(Var2, Freq) %>% 
+  rename(Variable = Var2, NACount = Freq) %>% 
+  datatable(class = 'cell-border stripe', options = list(dom = "t"), rownames = FALSE)
+```
+
+
+
+We will keep this information handy for now and look at various options for imputing in our machine learning process.
+
+Some of the Impute options that we will be testing are:
+
+ 1) Impute as Unkown - since this are categorical variables, we can directly use them as unknown
+ 2) K Nearast Neighbour Impute - We can use various distance technqiue to identify neareast neighbour and impute accordingly
+ 3) Bagged impute - We will take various sample from our dataset and deicide imputing value based on majority or average in case of numeric.
+ 
+If you with me so far, lets move to the to Part III of this Machine Learning process - the tidy approach.
+
+
+  
+

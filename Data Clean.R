@@ -45,4 +45,4 @@ nb_data <- nb_data_csv %>%
 
 #no of bedrooms, floor, HomeType
 
-nb_data %>% select(Bedrooms) %>% distinct()
+

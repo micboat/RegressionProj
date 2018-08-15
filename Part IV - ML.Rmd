@@ -1,0 +1,327 @@
+---
+title: "Part IV - ML"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+
+library(tidyverse); library(caret); library(tidymodels); library(ranger); library(h2o)
+
+nb_data <- readRDS("F:/Vasim/RegressionProj/nb_data.rds") %>% 
+  filter(HousePriceinK > 100)
+
+```
+
+In this phase we will be preparing various regression models for predicting house prices.
+
+A traditional data scientist spent around 80% of thier time on data cleaning, however the modern data scientist spends around 80% of their time tweaking hyperparameters of their model.
+
+
+## Split Data
+
+Lets split our data in test and training set. We will use the rsample package for split 
+
+Note:- nb_data is already loaded in our workspace. It can be downloaded from here.
+
+```{r}
+
+set.seed(42)
+
+train_test_split <- initial_split(nb_data)
+
+nb_train <- training(train_test_split)
+nb_test <- testing(train_test_split)
+
+
+```
+
+## Pre Process
+
+Lets impute missing values. We alrady have the missing value stats with us (from module 1), lets recollect it.
+
+| Features    | Missing values |
+|-------------|----------------|
+| FloorType   | 209            |
+| Facing      | 1153           |
+| PowerBackup | 4229           |
+| WaterSupply | 116            |
+
+Since we will run multiple models, first lets create a structure for our model i.e. set preprocessing steps to our model.
+
+```{r}
+rec_obj <- recipe(HousePriceinK ~ ., data = nb_data) %>% #1
+  step_knnimpute(all_predictors()) %>%  #2
+  step_dummy(all_predictors(), -all_numeric()) %>% #3
+  step_log(all_outcomes()) %>% 
+  prep(training = nb_train) #4
+
+train_data <- rec_obj %>% #5
+  bake(nb_train) %>% 
+  select(-HousePriceinK, everything())
+
+test_data <- rec_obj %>% #5
+  bake(nb_train) %>% 
+  select(-HousePriceinK, everything())
+
+```
+
+Let's understand what are we doing in above code!
+
+1 - Creating a structure for our model, the data argument is just to identify variables.
+2 - Impute missing value through KNN algorithim, the default K is 5.
+3 - Convert nominal data into numeric hot encoding.
+4 - Run preprocess step on our data
+5 - Apply our preprossing steps on training and test set.
+
+We can apply various preprocessing steps such as stp_center, step_scale, etc from the [recipes](https://tidymodels.github.io/recipes/index.html) package.
+
+## Train Model
+
+We will train the following four models; later on we will look at ways to overcome overfitting.
+
+Why 4
+
+1) RandomForest
+2) xgBoost
+3) Ridge Regression
+4) ElasticNet Regression
+4) Principal Component Regression (PCR)
+
+#### Random Forest
+
+
+```{r message=FALSE, warning=FALSE}
+library(ranger)
+rf_model <- ranger(HousePriceinK ~ ., data = train_data)
+rf_prediction <- predict(rf_model, train_data[1:44]) %>% 
+  predictions()  #the predictions are log values, later we will convert them using exp().
+```
+
+#### xgBoost
+
+```{r message=FALSE, warning=FALSE}
+library(xgboost)
+
+xgb_model <- xgboost(data = as.matrix(train_data[1:44]), label = as.matrix(train_data[45]), nrounds = 500, verbose = 0)
+xg_prediction <- predict(xgb_model, as.matrix(train_data[1:44]))
+
+```
+
+#### Ridge Regression
+
+```{r message=FALSE, warning=FALSE}
+library(glmnet)
+
+ridge_model <- cv.glmnet(x = as.matrix(train_data[1:44]), y = as.matrix(train_data[45]))
+
+ridge_predict<- predict(ridge_model, as.matrix(train_data[1:44]))
+
+```
+
+#### Principal component regression (PCR)
+
+```{r message=FALSE, warning=FALSE}
+library(pls)
+
+pcr_model <- pcr(HousePriceinK ~ ., data = train_data)
+
+pcr_predict <- predict(pcr_model, train_data[1:44], ncomp = 44)
+
+```
+
+## Compare Performance
+
+For a regression problem, the Root Mean Square Error - RMSE is a best indicator of performance
+
+```{r}
+# Since house price was transformed to log values, we convert it back using exp()
+results <- tibble(
+  Actual = train_data$HousePriceinK %>% exp(),
+  RF = rf_prediction %>% exp(),
+  xg = xg_prediction %>% exp(),
+  ridge = ridge_predict %>% as.vector() %>% exp(),
+  PCR = pcr_predict %>% as.vector() %>% exp()
+)
+
+
+RMSE <- tibble(
+  RMSE_RF = results %>% rmse(Actual, RF),
+  RMSE_xg = results %>% rmse(Actual, xg),
+  RMSE_ridge = results %>% rmse(Actual, ridge),
+  RMSE_PCR = results %>% rmse(Actual, PCR)
+) %>% 
+  gather("Algo", 1:4, value = "RMSE") %>% 
+  arrange(RMSE)
+
+RMSE
+
+```
+
+
+With default values of the model, we can see that Random Forest turns out to provide the best performance.
+
+Next we will use cross validation technique to evaluate overfitting of models and imporve model performance. Further to that we will check if tuning model hyperparameters could help to increase performance.
+
+
+Lets create cross validation samples of our data. We will create 10 cross validation set.
+
+```{r}
+
+set.seed(42)
+
+#Create 10 splits of data, repeat it for 5 times i.e create 50 samples.
+cv_train <- train_data %>% vfold_cv(v = 10, repeats = 2)
+
+first_sample <- cv_train$splits[[1]]
+
+#dim(cv_train$splits[[1]])
+
+```
+
+As we see for a single sample we have total 4986 observation, this will create approx 4487 (90%) observation to perform training and approx 499 (10%) observation for testing purpose.
+
+Note: Read analysis as trainset and assessment as testset, they have being named accordingly to avoid confusion
+
+
+We will run a random forest model on the cross validation data
+
+```{r}
+
+mod_fun <- function(split, ...){
+
+cv_trainset <- analysis(split)
+cv_testset <- assessment(split) %>% select(-HousePriceinK)
+
+rfmod <- ranger(HousePriceinK ~ ., data = cv_trainset)
+xgmod <- xgboost(data = as.matrix(cv_trainset[1:44]), label = as.matrix(cv_trainset[45]), nrounds = 500, verbose = 0)
+#ridmod <- cv.glmnet(x = as.matrix(cv_trainset[1:44]), y = as.matrix(cv_trainset[45]))
+#pcrmodel <- pcr(HousePriceinK ~ ., data = cv_trainset)
+
+cv_results <- tibble(
+  actual = assessment(split) %>% select(HousePriceinK) %>% pull() %>% exp(),
+  rfpred = predict(rfmod, cv_testset) %>% predictions() %>% exp(),
+  xgpred = predict(xgmod, as.matrix(cv_testset)) %>% exp(),
+  #ridpred = predict(ridmod, as.matrix(cv_testset)) %>% as.vector() %>% exp()
+  #pcrpred = predict(pcrmodel, cv_testset, ncomp = 44) %>% as.vector() %>% exp()
+)
+
+#cv_rmse <- cv_results %>% rmse(actual, pred)
+
+# str_c(cv_results %>% rmse(actual, rfpred), 
+#   cv_results %>% rmse(actual, xgpred),
+#   cv_results %>% rmse(actual, ridpred),
+#   cv_results %>% rmse(actual, pcrpred), sep = ",")
+
+cv_RMSE <- tibble(
+  RMSE_RF = cv_results %>% rmse(actual, rfpred),
+  RMSE_xg = cv_results %>% rmse(actual, xgpred),
+  #RMSE_ridge = cv_results %>% rmse(actual, ridpred)
+  #RMSE_PCR = cv_results %>% rmse(actual, pcrpred)
+  )
+
+}
+
+
+
+cv_train$RMSE <- map(cv_train$splits, mod_fun)
+
+cv_train <- cv_train %>% 
+  unnest(RMSE)
+
+
+```
+
+## POST HOC Analysis
+
+
+TidyPosterior
+
+
+https://tidymodels.github.io/tidyposterior/articles/Different_Bayesian_Models.html
+
+```{r}
+
+stacked_rmse <- cv_train %>% 
+  select(id, id2, "randomforest" = RMSE_RF, "xgboost" = RMSE_xg) %>% 
+  gather() 
+
+stacked_rmse %>% 
+  group_by(model) %>% 
+  summarise(Average = mean(statistic), 
+            SD = sd(statistic), 
+            Min = min(statistic), 
+            Max = max(statistic)
+            )
+
+# The best is were average static is near zero.
+stacked_rmse %>% 
+  ggplot(aes(model, statistic)) + 
+  geom_boxplot()
+
+# We notice that almost in all samples xgboost provides better results.
+stacked_rmse %>% 
+  ggplot(aes(x = model, y = statistic, group = paste(id, id2), col = paste(id, id2))) + 
+    geom_line(alpha = .75) + 
+    theme(legend.position = "none")
+
+# Initially randomforest had better results but later on xgboost took over
+stacked_rmse %>%  ggplot(aes(col = model, x = statistic)) + 
+  geom_line(stat = "density", trim = FALSE) + 
+  theme(legend.position = "top")
+
+```
+
+
+## INFER
+
+
+```{r}
+cv_train %>% 
+  specify(RMSE_RF ~ NULL) %>% 
+  calculate(stat = "mean")
+```
+
+
+<!--
+```{r}
+#library(randomForest)
+
+randomForest(HousePriceinK ~ ., data = train_data)
+
+```
+
+
+How many threads to use
+
+```{r message=FALSE, warning=FALSE}
+library(h2o)
+h2o.init()
+
+h2o.randomForest(y = "HousePriceinK",
+                 training_frame = as.h2o(train_data))
+
+
+```
+
+```{r}
+h2o.shutdown()
+```
+
+
+
+```{r}
+set.seed(42)
+
+train(HousePriceinK ~ ., 
+      data = train_data,
+      method = "ranger"
+      
+      )
+
+```
+
+-->

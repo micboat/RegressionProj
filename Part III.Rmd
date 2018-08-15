@@ -1,0 +1,81 @@
+---
+title: "Part III"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE); library(corrplot); library(tidyverse)
+
+nb_data <- readRDS("F:/Vasim/RegressionProj/nb_data.rds")
+
+```
+
+## Visualize Mumbai
+
+```{r, fig.height=500}
+library(leaflet)
+
+pal <- colorNumeric(palette = "viridis", nb_data$HousePriceinK)
+
+nb_data %>% select(Lat, Long, HousePriceinK) %>% distinct() %>% 
+leaflet(options = leafletOptions(zoomControl = FALSE, minZoom = 11, maxZoom = 11, dragging = FALSE)) %>% 
+  addTiles() %>% 
+  fitBounds(lat1 = 19.200000001, lng1 = 72.82, lat2 = 18.899, lng2 = 72.88) %>% 
+  addCircles(lat = ~Lat, lng = ~Long, color = ~pal(HousePriceinK), weight = 5) %>% 
+  addLegend("bottomright", pal = pal, values = ~HousePriceinK,
+    title = "House Price",
+    labFormat = labelFormat(suffix = "K"),
+    opacity = 1
+  )
+
+```
+
+## Correlation
+
+In the following correlation plot, we observe that there is a strong relationship between Area and Houseprice. Also strong relationship exist between Area, no of Bedrooms and no of bathrooms and it is rightly so.
+
+```{r}
+nb_data %>% select_if(is.numeric) %>% stats::cor() %>% corrplot()
+```
+
+## Explore
+
+```{r}
+library(plotly)
+
+nb_data %>% 
+  plot_ly(x = ~log(HousePriceinK)) %>% 
+  add_histogram()
+
+```
+
+There, we can see that there are some small outliers in the data. Upon further exploring we notice that there are two houses whose price are listed as 13K and 26K with big area, being born and brought up in Mumbai (domain knowledge) we are sure that there is something wrong with these figures and as there are only two records we remove them. 
+
+```{r}
+
+age_order <- c("Under Construction", "Newly Constructed", "1-3 years old", "3-5 years old", "5-10 years old")
+
+nb_data %>% filter(HousePriceinK > 100) %>% 
+  ggplot(aes(log(HousePriceinK))) + 
+  geom_histogram(bins = 100) + 
+  facet_grid(. ~ fct_relevel(Age, age_order)) + 
+  labs(x = "(Log) House Price", y = "Histogram count") 
+  
+```
+
+We see that across age the normal distribution still stands.
+Hence on above exploration we conclude that since log house prices return to normal distribution we should use log of house price in our machine learning models. Thos assumption will help us to perform statistical test on predictors.
+
+Area
+
+```{r}
+nb_data %>% filter(HousePriceinK > 100) %>%
+  ggplot(aes(Area)) + 
+  geom_histogram()
+```
+
+
+
+
+
+
