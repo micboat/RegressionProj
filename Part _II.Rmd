@@ -1,5 +1,5 @@
 ---
-title: "Phase II Data Cleaning, Quality Enhancing and Feature Enginering"
+title: "Step III Data Cleaning, Quality Enhancing and Feature Enginering"
 output: html_document
 ---
 
@@ -9,9 +9,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Dataset
 
-In phase one of our project, we extracted data from NoBroker.in. In this phase we will be processing one of the most important step in machine learning i.e Data cleaning, Data Exploring and Feature Enginerring.
+In step one of our project, we extracted data from NoBroker.in. In this step we will prepare our data for machine learning models, i.e we will be looking at data cleaning, quality checking and feature enginering.
 
-Old saying - Data scientists spend 80% of their time preparing and cleaning their data. They spend the other 20% of their time complaining about preparing and cleaning their data.
+
+> At face value, model building appears straightforward: pick a modeling technique, plug in data, and generate a prediction. While this approach will generate a predictive model, it will most likely not generate a reliable, trustworthy model for predicting new samples. To get this type of model, we must first understand the data and the objective of the modeling.
+
+> --Max Kuhn, Kjell Johnson -  Applied Machine Learning
 
 ## Read data
 
@@ -61,27 +64,41 @@ nb_data <- nb_data %>%
   separate(FloorOn, c("Delete6", "OnFloor", "Delete7", "NooffloorsinBldg"), sep = " ") %>% 
   select(-Amt, -word, -starts_with("Delete"), - wordtonum) %>% 
   mutate_at(c("NoofBedrooms", "NoofBathrooms", "NoofBalconies", "Maint_sqft", "OnFloor", "NooffloorsinBldg"), 
-            as.numeric)
+            as.numeric) %>% 
+  mutate(OwnedBy = ifelse(str_detect(OwnedBy, "On Lease"), "Rented", "Owned"))
   
 
 ```
 
 ## Feature Enginerring
 
-Lets scale price and maintainance on '000 scale.
-
-
+Lets scale price on '000 scale.
 
 ```{r}
 nb_data <- nb_data %>% 
   mutate(HousePriceinK = HousePrice/ 1000) %>% 
-  mutate(Maint_sqft = Maint_sqft * Area) %>% 
+ # mutate(Maint_sqft = Maint_sqft * Area) %>% 
   select(-HousePrice) %>% 
-  mutate_at(c("Negotiable", "FloorType", "Bldgtype", "Age", "OwnedBy", "Furnished", "Facing", "Parking", "PowerBackup", "WaterSupply"), as.factor)
+  mutate_at(c("Negotiable", "FloorType", "Bldgtype", "Age", "OwnedBy", "Furnished", "Facing", "Parking", "PowerBackup", "WaterSupply"), as.factor) #%>% 
+  # mutate(NoofBedrooms = factor(NoofBedrooms, levels = 0:4, ordered = TRUE)) %>% 
+  # mutate(NoofBathrooms = factor(NoofBathrooms, levels = 0:8, ordered = TRUE)) %>% 
+  # mutate(NoofBalconies = factor(NoofBalconies, levels = 0:11, ordered = TRUE)) %>% 
+  # mutate(NooffloorsinBldg = factor(NooffloorsinBldg, levels = 0:117, ordered = TRUE)) %>% 
+  # mutate(OnFloor = factor(OnFloor, levels = 0:56, ordered = TRUE))
+```
+
+```{r}
+summary(nb_data)
 ```
 
 
 ## Outilers
+
+From above summary, there are some points that looks suspicious. 
+TODO Specify why Age
+
+Maximum Area = 1283800 Well thats huge
+Maintanance = 18888 Again Huge
 
 ```{r}
 nb_data %>% 
@@ -118,11 +135,47 @@ nb_data %>%
 
 Ah! A 14 stored bldg having an area of 9000 with 2 Bedrooms, though it is possible but it seems suspisious. Since we have enough data (considering this project is at a company where data flow is adequate), we will remove this entry as well.
 
+In a similar fashion, we remove maintainance outliers
+
 ```{r}
 nb_data <- nb_data %>% 
   filter(Area < 8999)
 ```
 
+```{r}
+nb_data %>% 
+  plot_ly(x = ~log(HousePriceinK)) %>% 
+  add_histogram()
+```
+
+We have a few more outliers, they are not going away easily, remember 80% of your time!
+
+```{r}
+
+nb_data <- nb_data %>% 
+  filter(HousePriceinK > 100)
+
+age_order <- c("Under Construction", "Newly Constructed", "1-3 years old", "3-5 years old", "5-10 years old")
+
+nb_data %>% 
+  ggplot(aes(log(HousePriceinK))) + 
+  geom_histogram(bins = 100) + 
+  facet_grid(. ~ fct_relevel(Age, age_order)) + 
+  labs(x = "(Log) House Price", y = "Histogram count") 
+  
+```
+
+In a similar fashion we remove outliers for Maintainance
+
+```{r}
+nb_data <- nb_data %>% 
+  filter(Maint_sqft < 50)
+```
+
+
+```{r}
+nb_data %>% summary()
+```
 
 ## Missing Values
 
@@ -130,13 +183,12 @@ By using summary we see that
 
 ```{r}
 nb_data %>% 
-  select("FloorType", "Facing", "PowerBackup", "WaterSupply") %>% 
   summary() %>% 
   tidy() %>% 
   filter(str_detect(Freq, "NA's")) %>% 
-  select(Var2, Freq) %>% 
-  rename(Variable = Var2, NACount = Freq) %>% 
-  datatable(class = 'cell-border stripe', options = list(dom = "t"), rownames = FALSE)
+  select("Variable" = Var2, "NACount" = Freq) #%>% 
+  #knitr::kable()
+  #datatable(class = 'cell-border stripe', options = list(dom = "t"), rownames = FALSE)
 ```
 
 
@@ -151,6 +203,61 @@ Some of the Impute options that we will be testing are:
  
 If you with me so far, lets move to the to Part III of this Machine Learning process - the tidy approach.
 
+## Near Zero Variance
 
-  
+```{r}
+nb_data %>% 
+  select_if(is.numeric) %>% 
+  nearZeroVar(saveMetrics = TRUE)
+```
+
+```{r}
+nb_data %>% 
+  select_if(is.factor) %>% 
+  nearZeroVar(saveMetrics = TRUE)
+```
+
+OwnedBy - we can see near zero variance (nzv column) return TRUE, since this has more repeated column we will remove this.
+
+BldgType also has a high freqRatio, we verified the output and decided to remove it so that our models do not break
+
+```{r}
+nb_data <- nb_data %>% 
+  select(-Bldgtype, -OwnedBy)
+```
+
+
+## Find Linear combinations
+
+```{r}
+nb_data %>% 
+  select_if(is.numeric) %>% 
+  findLinearCombos()
+```
+
+```{r}
+nb_data %>% 
+  summary()
+```
+
+## Correlation
+
+```{r}
+nb_data %>% select_if(is.numeric) %>% stats::cor() %>% corrplot()
+```
+
+Not surprising, Area is highly correlated with House Price.
+As we move towards north from south, price starts declining.
+similarly for east to west!
+
+```{r}
+saveRDS(nb_data, "nb_data.rds")
+```
+
+
+## Two points to move forward along with data
+Impute Missing Value
+No of Bathrooms, No of Balconies <- use step_other
+
+check Minimum price on House, Remove Module 3.
 

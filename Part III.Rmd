@@ -1,7 +1,10 @@
 ---
-title: "Part III"
+title: "Part II"
 output: html_document
 ---
+
+
+DISCARDED, USE IMAGE as Clickbait
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE); library(corrplot); library(tidyverse)
@@ -21,7 +24,7 @@ nb_data %>% select(Lat, Long, HousePriceinK) %>% distinct() %>%
 leaflet(options = leafletOptions(zoomControl = FALSE, minZoom = 11, maxZoom = 11, dragging = FALSE)) %>% 
   addTiles() %>% 
   fitBounds(lat1 = 19.200000001, lng1 = 72.82, lat2 = 18.899, lng2 = 72.88) %>% 
-  addCircles(lat = ~Lat, lng = ~Long, color = ~pal(HousePriceinK), weight = 5) %>% 
+  addCircles(lat = ~Lat, lng = ~Long, color = ~pal(HousePriceinK), weight = 5, fillOpacity = 0.1) %>% 
   addLegend("bottomright", pal = pal, values = ~HousePriceinK,
     title = "House Price",
     labFormat = labelFormat(suffix = "K"),

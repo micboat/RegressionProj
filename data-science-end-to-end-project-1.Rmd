@@ -1,0 +1,45 @@
+---
+title: Data Science End to End Project 1 - Regression Problem
+author: ''
+date: '2018-07-28'
+slug: data-science-end-to-end-project-1
+categories:
+  - R
+tags:
+  - data science
+---
+
+
+
+One of the most famous dataset on Kaggle is of Zillow Home Value Prediction. The winner of the competition got a prize of 12 million dollars!
+
+In this project we will be doing similar set of activities but for an online Indian real estate company - [NoBroker.in](http://www.nobroker.in).
+
+We will use the Machine Learning project checklist from the book Hands on Machine Learning with Scikit-Learn and Tensorflow.
+
+### **Look at the big Picture**
+
+### **Get the Data**
+
+Here we scrap data from the website using the `rvest` package.   
+Using just two package we will scrap the entire data [read more...](/project_files/nobroker-extract-data.html)
+
+
+### **Discover and visualize the data to gain insights.**
+
+
+### **Prepare the data for Machine Learning algorithms.**
+
+
+### **Select a model and train it.**
+
+
+### **Fine-tune your model**
+
+
+### **Present your solution.**
+
+
+### **Launch, monitor, and maintain your system.**
+
+### Bonus
