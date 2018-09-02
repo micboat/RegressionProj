@@ -1,0 +1,24 @@
+name: "my-website"
+navbar:
+  title: "Machine Learning"
+  left:
+    - text: "Home"
+      href: index.html
+    - text: "Data Extract"
+      href: nobroker-extract-data.html
+    - text: "Data Cleaning"
+      href: Part_II.html
+    - text: "Model Design"
+      href: Part_IV_ML.html
+    - text: "Deploy"
+      href: Part III.html
+      
+output_dir: "docs"
+
+output:
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    toc: true
+    toc_float:
+      collapsed: false

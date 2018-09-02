@@ -1,0 +1,140 @@
+---
+title: Nobroker.in Extract data
+output: 
+  html_document:
+    code_folding: show
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+```
+
+Here we scrap data from the website using the `rvest` package.
+
+First we set the base url, nobroker has its services throughout India. In this project we are focusing on the *Mumbai* location and following is the base url for Mumbai.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+
+baseurl <- "https://www.nobroker.in/property/sale/mumbai/Mumbai/?nbPlace=ChIJwe1EZjDG5zsRaYxkjY_tpF0&price=0,100000000000000&lat_lng=19.1232561569964,72.8771623837987&latitude=19.1232561569964&longitude=72.8771623837987&orderBy=nbRank,desc&radius=2&propertyType=sale&pageNo="
+```
+
+Upon monitering the base url page we notice that there are 10 properties listed on each page and each property has a unique id associated with it. 
+
+We write a small function to extract the unique id's. We then use `map` function from the `purrr` package to loop throught the website and extract unique id's into a dataframe.
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+library(rvest); library(tidyverse)
+
+NB_get_ID_dump <- function(url) {
+
+  getNBID <- read_html(url) %>% 
+    html_nodes(".card") %>% 
+    html_attr("id") %>% 
+    as.tibble() %>% 
+    separate(value, c("delete", "id"), sep = "-") %>% 
+    select(id)
+
+}
+
+#1:2 indicates 2 pages - i.e. 20 etries
+all_ids <- paste0(baseurl, 1:2) %>% map_df(NB_get_ID_dump)
+
+```
+
+The result will look similar to this
+
+| id                                |
+|-----------------------------------|
+| ff80818162538115016253836a850049  |
+| ff808181625fd82b016260c7d89c33a4  |
+| ff8081815880273f015880c37e8c2e4c  |
+| ff80818163ddd7b60163de288954388d  |
+| ff8081815b38ebc2015b3a2750b35955  |
+
+
+Next, we write a function to extract data from each id and store results in a `tibble`. The function `NB_ind_dump` in below code helps us to extract property details such as Latitude, Longitude, Area, Price, etc a lot of information about the listed property.
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+NB_ind_dump <- function(propid) {
+  
+  #https://www.nobroker.in/property/buy/ff80818164a2a27f0164a2b2a09c0b7d/detail
+  
+  ind_doc <- read_html(paste0("https://www.nobroker.in/property/buy/", propid ,"/detail"))
+  
+  #Posted Time
+  table_time <- ind_doc %>% html_text() %>% 
+    str_extract_all("timeago.*") %>%
+    str_extract_all("'.*PM") %>% 
+    as.data.frame() %>% 
+    as.tibble() %>% 
+    set_names("PostedTime") %>% 
+    separate(PostedTime, c("del", "PostedTime"), sep = "'") %>% 
+    select("PostedTime")
+  
+  #Lat and Long
+  table_lat_long <- ind_doc %>% 
+    html_nodes("#map-canvas") %>% 
+    str_extract_all("data-l.*") %>% 
+    str_extract_all("\\d{2}\\.\\d*") %>% 
+    as.data.frame() %>% t() %>% as.tibble() %>% 
+    set_names("Lat", "Long")
+  
+  #Details
+  table_all_details <- ind_doc %>% 
+    html_nodes("#fixedHeaderOnScroll .detail-title , .detail-title-main, h5, #price, .text-align-left .detail-title#fixedHeaderOnScroll .detail-title , .detail-title-main, h5, #price, .text-align-left .detail-title") %>% 
+    html_text() %>% str_trim() %>% 
+    as.tibble() %>%
+    slice(6:51) %>% t() %>% as.tibble()
+  
+  final_table <- reduce(c(table_time, table_lat_long, table_all_details), cbind) %>% as.tibble()
+  
+  Sys.sleep(5) #set random betweem 5 to 50 seconds
+  return(final_table)
+  
+}
+```
+
+We again use the map function to extract information of listed property.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+
+NB_dump <- all_ids %>% pull(id) %>% map_df(NB_ind_dump) 
+
+```
+
+The NB_dump now has 49 variables about a property listed on the website. Finally we remove some duplicate and invalid columns to get our final result.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+
+cleaned_table <- NB_dump %>% 
+  select(-14, -16, -17, -18, -21, -22, -26, -28, -30, -32, -34, -36, -38, -40, -42, -43, -44, -46, -48) %>% 
+  set_names("PostedTime", "Lat", "Long", "SaleType", "HouseType", "Address", "Verified", "LoanVerified", "Price", "Negotiable", "Area", "Measure", "MonthlyEMI", "Bedrooms", "Bathrooms", "FloorType", "Balconies", "ShortAddress", "Bldgtype", "Age", "OwnedBy", "Maintanance", "FloorType2", "Area2", "Furnished", "Facing", "FloorOn", "Parking", "PowerBackup", "WaterSupply")
+
+```
+
+Here is our final result, a glimpse of our table.
+
+```{r eval = FALSE, message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+
+cleaned_table <- readRDS("nobroker.rds")
+
+```
+
+```{r eval = FALSE, message=FALSE, warning=FALSE}
+
+cleaned_table %>% 
+  head() %>% 
+  select(1:5) %>% 
+  DT::datatable(rownames = FALSE)
+
+```
+
+Go [back](/project/data-science-end-to-end-project-1) to regression project.
+
+Want to learn more about rvest? here is a [vignette](https://cran.r-project.org/web/packages/rvest/vignettes/selectorgadget.html).
+
+

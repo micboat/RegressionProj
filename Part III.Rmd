@@ -25,6 +25,7 @@ leaflet(options = leafletOptions(zoomControl = FALSE, minZoom = 11, maxZoom = 11
   addTiles() %>% 
   fitBounds(lat1 = 19.200000001, lng1 = 72.82, lat2 = 18.899, lng2 = 72.88) %>% 
   addCircles(lat = ~Lat, lng = ~Long, color = ~pal(HousePriceinK), weight = 5, fillOpacity = 0.1) %>% 
+  #addMarkers(lat = ~Lat, lng = ~Long, clusterOptions = markerClusterOptions()) %>% 
   addLegend("bottomright", pal = pal, values = ~HousePriceinK,
     title = "House Price",
     labFormat = labelFormat(suffix = "K"),
