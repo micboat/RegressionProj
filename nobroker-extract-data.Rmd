@@ -1,5 +1,5 @@
 ---
-title: Nobroker.in Extract data
+title: Get Data
 output: 
   html_document:
     code_folding: show
@@ -7,60 +7,77 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+knitr::opts_chunk$set(cache=TRUE, eval = FALSE, fig.align="center")
 ```
 
-Here we scrap data from the website using the `rvest` package.
+## Web Scraping
 
-First we set the base url, nobroker has its services throughout India. In this project we are focusing on the *Mumbai* location and following is the base url for Mumbai.
+In order to prepare our "Mumbai price estimator" model we need information such as price, location, size and other relevant data of the houses located in Mumbai.  
 
-```{r eval=FALSE, message=FALSE, warning=FALSE}
+We scrap data from a real estate website [NoBroker.in](https://www.nobroker.in/) using the `rvest` package. We collect the sample information from the website and generalize our estimation based on these samples.
 
+## Ethics
+
+Before we begin scraping we should check if the website allows data scraping?
+The [robots.txt](https://www.nobroker.in/robots.txt) file (screenshot below) disallow bots to scrap scrap admin page, other than these there are no restrictions.
+
+```{r, robots_image, eval=TRUE, echo=FALSE}
+knitr::include_graphics("image/nbrobots.png")
+```
+
+Apart from the robot file, we will adhere to the following principles.
+
+1) For a new request, our bot will wait between one to five minutes, this ensures that there is no major impair on the website server; also saves our IP address ban.
+
+2) We will scrape data which is available on public domain. Thus we will not scrape any personal information such as Name, phone number or any other sensitive/protected records.
+
+3) We pledge to not be involved in any commercial activity with the data extracted from website. The data will only be used for educational/publishing purpose.
+
+Now, that we have laid our principles, lets proceed to scraping.
+
+### Extract ID's
+
+First we set the base URL, nobroker provides services throughout India. Our project focuses on *Mumbai* location, the following is the base URL for Mumbai.  
+
+```{r, base_url, eval=FALSE, message=FALSE, warning=FALSE}
 baseurl <- "https://www.nobroker.in/property/sale/mumbai/Mumbai/?nbPlace=ChIJwe1EZjDG5zsRaYxkjY_tpF0&price=0,100000000000000&lat_lng=19.1232561569964,72.8771623837987&latitude=19.1232561569964&longitude=72.8771623837987&orderBy=nbRank,desc&radius=2&propertyType=sale&pageNo="
 ```
 
-Upon monitering the base url page we notice that there are 10 properties listed on each page and each property has a unique id associated with it. 
+The base URL has 10 property details on each page and each property has a **unique id** associated with it. 
 
-We write a small function to extract the unique id's. We then use `map` function from the `purrr` package to loop throught the website and extract unique id's into a dataframe.
+We write a small function to extract the unique ids. We then use `map` function from the `purrr` package to loop through the website and extract unique id's into a dataframe.
 
 
-```{r eval=FALSE, message=FALSE, warning=FALSE}
+```{r, pull_id}
 library(rvest); library(tidyverse)
 
 NB_get_ID_dump <- function(url) {
-
+  
   getNBID <- read_html(url) %>% 
     html_nodes(".card") %>% 
     html_attr("id") %>% 
     as.tibble() %>% 
     separate(value, c("delete", "id"), sep = "-") %>% 
     select(id)
-
+  
 }
 
-#1:2 indicates 2 pages - i.e. 20 etries
+#1:2 indicates 2 pages - i.e. 2 x 10 = 20 entries
 all_ids <- paste0(baseurl, 1:2) %>% map_df(NB_get_ID_dump)
 
 ```
 
-The result will look similar to this
+An extracted id looks like this "ff80818162538115016253836a850049". We will use these ids to extract relevant property information.
 
-| id                                |
-|-----------------------------------|
-| ff80818162538115016253836a850049  |
-| ff808181625fd82b016260c7d89c33a4  |
-| ff8081815880273f015880c37e8c2e4c  |
-| ff80818163ddd7b60163de288954388d  |
-| ff8081815b38ebc2015b3a2750b35955  |
+### Extract property records
+
+Now that we have a list of property ids, we proceed to extract relevant property information. We write a function to extract data from each id and store results in a `tibble`.  
+
+The function `NB_ind_dump` in below code helps us to extract property details such as Latitude, Longitude, Area, Price, etc about a listed property.
 
 
-Next, we write a function to extract data from each id and store results in a `tibble`. The function `NB_ind_dump` in below code helps us to extract property details such as Latitude, Longitude, Area, Price, etc a lot of information about the listed property.
-
-
-```{r eval=FALSE, message=FALSE, warning=FALSE}
+```{r, dump_func}
 NB_ind_dump <- function(propid) {
-  
-  #https://www.nobroker.in/property/buy/ff80818164a2a27f0164a2b2a09c0b7d/detail
   
   ind_doc <- read_html(paste0("https://www.nobroker.in/property/buy/", propid ,"/detail"))
   
@@ -82,32 +99,39 @@ NB_ind_dump <- function(propid) {
     as.data.frame() %>% t() %>% as.tibble() %>% 
     set_names("Lat", "Long")
   
-  #Details
+  #Other Details
   table_all_details <- ind_doc %>% 
-    html_nodes("#fixedHeaderOnScroll .detail-title , .detail-title-main, h5, #price, .text-align-left .detail-title#fixedHeaderOnScroll .detail-title , .detail-title-main, h5, #price, .text-align-left .detail-title") %>% 
+    html_nodes("#fixedHeaderOnScroll .detail-title , 
+                #price,
+               .detail-title-main, 
+               .text-align-left .detail-title#fixedHeaderOnScroll .detail-title ,
+               .detail-title-main, 
+               .text-align-left .detail-title,
+                h5") %>% 
     html_text() %>% str_trim() %>% 
     as.tibble() %>%
     slice(6:51) %>% t() %>% as.tibble()
   
   final_table <- reduce(c(table_time, table_lat_long, table_all_details), cbind) %>% as.tibble()
   
-  Sys.sleep(5) #set random betweem 5 to 50 seconds
+  #Wait randomly between 1 to 5 minutes
+  runif(1, min = 60, max = 300) %>% Sys.sleep()
   return(final_table)
   
 }
 ```
 
-We again use the map function to extract information of listed property.
+We again use the `map_df` function to extract information of listed property into a `dataframe`.
 
-```{r eval=FALSE, message=FALSE, warning=FALSE}
+```{r, call_dump_func}
 
 NB_dump <- all_ids %>% pull(id) %>% map_df(NB_ind_dump) 
 
 ```
 
-The NB_dump now has 49 variables about a property listed on the website. Finally we remove some duplicate and invalid columns to get our final result.
+The extracted `NB_dump` now has 49 features about property listed on the website. We remove some duplicate and invalid features to get our final result.
 
-```{r eval=FALSE, message=FALSE, warning=FALSE}
+```{r, data_cleaning}
 
 cleaned_table <- NB_dump %>% 
   select(-14, -16, -17, -18, -21, -22, -26, -28, -30, -32, -34, -36, -38, -40, -42, -43, -44, -46, -48) %>% 
@@ -115,26 +139,27 @@ cleaned_table <- NB_dump %>%
 
 ```
 
-Here is our final result, a glimpse of our table.
+Here is a glimpse of our final result.
 
-```{r eval = FALSE, message=FALSE, warning=FALSE, include=FALSE}
+```{r, finalone, eval = TRUE, echo = FALSE}
 library(tidyverse)
 
 cleaned_table <- readRDS("nobroker.rds")
 
 ```
 
-```{r eval = FALSE, message=FALSE, warning=FALSE}
+```{r, final_publish, eval = TRUE}
 
 cleaned_table %>% 
   head() %>% 
-  select(1:5) %>% 
+  select(2:6) %>% 
   DT::datatable(rownames = FALSE)
 
 ```
 
-Go [back](/project/data-science-end-to-end-project-1) to regression project.
 
-Want to learn more about rvest? here is a [vignette](https://cran.r-project.org/web/packages/rvest/vignettes/selectorgadget.html).
+## Source and Citation
 
+[Nobroker.in](https://www.nobroker.in/) - World's Largest NoBrokrage Property Site.
 
+Web scraping through rvest [vignette](https://cran.r-project.org/web/packages/rvest/vignettes/selectorgadget.html).

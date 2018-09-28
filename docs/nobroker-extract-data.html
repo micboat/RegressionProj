@@ -11,9 +11,9 @@
 
 
 
-<title>Nobroker.in Extract data</title>
+<title>Get Data</title>
 
-<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<script src="site_libs/jquery-1.12.4/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
@@ -26,6 +26,14 @@
 <script src="site_libs/navigation-1.1/codefolding.js"></script>
 <link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/htmlwidgets-1.2/htmlwidgets.js"></script>
+<link href="site_libs/datatables-css-0.0.0/datatables-crosstalk.css" rel="stylesheet" />
+<script src="site_libs/datatables-binding-0.4/datatables.js"></script>
+<link href="site_libs/dt-core-1.10.16/css/jquery.dataTables.min.css" rel="stylesheet" />
+<link href="site_libs/dt-core-1.10.16/css/jquery.dataTables.extra.css" rel="stylesheet" />
+<script src="site_libs/dt-core-1.10.16/js/jquery.dataTables.min.js"></script>
+<link href="site_libs/crosstalk-1.0.0/css/crosstalk.css" rel="stylesheet" />
+<script src="site_libs/crosstalk-1.0.0/js/crosstalk.min.js"></script>
 
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
@@ -289,7 +297,7 @@ div.tocify {
         <span class="icon-bar"></span>
         <span class="icon-bar"></span>
       </button>
-      <a class="navbar-brand" href="index.html">Machine Learning</a>
+      <a class="navbar-brand" href="index.html">Machine Learning - A tidy approach</a>
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
@@ -303,10 +311,10 @@ div.tocify {
   <a href="Part_II.html">Data Cleaning</a>
 </li>
 <li>
-  <a href="Part_IV_ML.html">Model Design</a>
+  <a href="PartIVML.html">Model Design</a>
 </li>
 <li>
-  <a href="Part III.html">Deploy</a>
+  <a href="stats.html">Linear Regression</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -328,46 +336,116 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Nobroker.in Extract data</h1>
+<h1 class="title toc-ignore">Get Data</h1>
 
 </div>
 
 
-<p>Here we scrap data from the website using the <code>rvest</code> package.</p>
-<p>First we set the base url, nobroker has its services throughout India. In this project we are focusing on the <em>Mumbai</em> location and following is the base url for Mumbai.</p>
-<p>Upon monitering the base url page we notice that there are 10 properties listed on each page and each property has a unique id associated with it.</p>
-<p>We write a small function to extract the unique id’s. We then use <code>map</code> function from the <code>purrr</code> package to loop throught the website and extract unique id’s into a dataframe.</p>
-<p>The result will look similar to this</p>
-<table>
-<thead>
-<tr class="header">
-<th>id</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>ff80818162538115016253836a850049</td>
-</tr>
-<tr class="even">
-<td>ff808181625fd82b016260c7d89c33a4</td>
-</tr>
-<tr class="odd">
-<td>ff8081815880273f015880c37e8c2e4c</td>
-</tr>
-<tr class="even">
-<td>ff80818163ddd7b60163de288954388d</td>
-</tr>
-<tr class="odd">
-<td>ff8081815b38ebc2015b3a2750b35955</td>
-</tr>
-</tbody>
-</table>
-<p>Next, we write a function to extract data from each id and store results in a <code>tibble</code>. The function <code>NB_ind_dump</code> in below code helps us to extract property details such as Latitude, Longitude, Area, Price, etc a lot of information about the listed property.</p>
-<p>We again use the map function to extract information of listed property.</p>
-<p>The NB_dump now has 49 variables about a property listed on the website. Finally we remove some duplicate and invalid columns to get our final result.</p>
-<p>Here is our final result, a glimpse of our table.</p>
-<p>Go <a href="/project/data-science-end-to-end-project-1">back</a> to regression project.</p>
-<p>Want to learn more about rvest? here is a <a href="https://cran.r-project.org/web/packages/rvest/vignettes/selectorgadget.html">vignette</a>.</p>
+<div id="web-scraping" class="section level2">
+<h2>Web Scraping</h2>
+<p>In order to prepare our “Mumbai price estimator” model we need information such as price, location, size and other relevant data of the houses located in Mumbai.</p>
+<p>We scrap data from a real estate website <a href="https://www.nobroker.in/">NoBroker.in</a> using the <code>rvest</code> package. We collect the sample information from the website and generalize our estimation based on these samples.</p>
+</div>
+<div id="ethics" class="section level2">
+<h2>Ethics</h2>
+<p>Before we begin scraping we should check if the website allows data scraping? The <a href="https://www.nobroker.in/robots.txt">robots.txt</a> file (screenshot below) disallow bots to scrap scrap admin page, other than these there are no restrictions.</p>
+<p><img src="image/nbrobots.PNG" width="316" style="display: block; margin: auto;" /></p>
+<p>Apart from the robot file, we will adhere to the following principles.</p>
+<ol style="list-style-type: decimal">
+<li><p>For a new request, our bot will wait between one to five minutes, this ensures that there is no major impair on the website server; also saves our IP address ban.</p></li>
+<li><p>We will scrape data which is available on public domain. Thus we will not scrape any personal information such as Name, phone number or any other sensitive/protected records.</p></li>
+<li><p>We pledge to not be involved in any commercial activity with the data extracted from website. The data will only be used for educational/publishing purpose.</p></li>
+</ol>
+<p>Now, that we have laid our principles, lets proceed to scraping.</p>
+<div id="extract-ids" class="section level3">
+<h3>Extract ID’s</h3>
+<p>First we set the base URL, nobroker provides services throughout India. Our project focuses on <em>Mumbai</em> location, the following is the base URL for Mumbai.</p>
+<pre class="r"><code>baseurl &lt;- &quot;https://www.nobroker.in/property/sale/mumbai/Mumbai/?nbPlace=ChIJwe1EZjDG5zsRaYxkjY_tpF0&amp;price=0,100000000000000&amp;lat_lng=19.1232561569964,72.8771623837987&amp;latitude=19.1232561569964&amp;longitude=72.8771623837987&amp;orderBy=nbRank,desc&amp;radius=2&amp;propertyType=sale&amp;pageNo=&quot;</code></pre>
+<p>The base URL has 10 property details on each page and each property has a <strong>unique id</strong> associated with it.</p>
+<p>We write a small function to extract the unique ids. We then use <code>map</code> function from the <code>purrr</code> package to loop through the website and extract unique id’s into a dataframe.</p>
+<pre class="r"><code>library(rvest); library(tidyverse)
+
+NB_get_ID_dump &lt;- function(url) {
+  
+  getNBID &lt;- read_html(url) %&gt;% 
+    html_nodes(&quot;.card&quot;) %&gt;% 
+    html_attr(&quot;id&quot;) %&gt;% 
+    as.tibble() %&gt;% 
+    separate(value, c(&quot;delete&quot;, &quot;id&quot;), sep = &quot;-&quot;) %&gt;% 
+    select(id)
+  
+}
+
+#1:2 indicates 2 pages - i.e. 2 x 10 = 20 entries
+all_ids &lt;- paste0(baseurl, 1:2) %&gt;% map_df(NB_get_ID_dump)</code></pre>
+<p>An extracted id looks like this “ff80818162538115016253836a850049”. We will use these ids to extract relevant property information.</p>
+</div>
+<div id="extract-property-records" class="section level3">
+<h3>Extract property records</h3>
+<p>Now that we have a list of property ids, we proceed to extract relevant property information. We write a function to extract data from each id and store results in a <code>tibble</code>.</p>
+<p>The function <code>NB_ind_dump</code> in below code helps us to extract property details such as Latitude, Longitude, Area, Price, etc about a listed property.</p>
+<pre class="r"><code>NB_ind_dump &lt;- function(propid) {
+  
+  ind_doc &lt;- read_html(paste0(&quot;https://www.nobroker.in/property/buy/&quot;, propid ,&quot;/detail&quot;))
+  
+  #Posted Time
+  table_time &lt;- ind_doc %&gt;% html_text() %&gt;% 
+    str_extract_all(&quot;timeago.*&quot;) %&gt;%
+    str_extract_all(&quot;&#39;.*PM&quot;) %&gt;% 
+    as.data.frame() %&gt;% 
+    as.tibble() %&gt;% 
+    set_names(&quot;PostedTime&quot;) %&gt;% 
+    separate(PostedTime, c(&quot;del&quot;, &quot;PostedTime&quot;), sep = &quot;&#39;&quot;) %&gt;% 
+    select(&quot;PostedTime&quot;)
+  
+  #Lat and Long
+  table_lat_long &lt;- ind_doc %&gt;% 
+    html_nodes(&quot;#map-canvas&quot;) %&gt;% 
+    str_extract_all(&quot;data-l.*&quot;) %&gt;% 
+    str_extract_all(&quot;\\d{2}\\.\\d*&quot;) %&gt;% 
+    as.data.frame() %&gt;% t() %&gt;% as.tibble() %&gt;% 
+    set_names(&quot;Lat&quot;, &quot;Long&quot;)
+  
+  #Other Details
+  table_all_details &lt;- ind_doc %&gt;% 
+    html_nodes(&quot;#fixedHeaderOnScroll .detail-title , 
+                #price,
+               .detail-title-main, 
+               .text-align-left .detail-title#fixedHeaderOnScroll .detail-title ,
+               .detail-title-main, 
+               .text-align-left .detail-title,
+                h5&quot;) %&gt;% 
+    html_text() %&gt;% str_trim() %&gt;% 
+    as.tibble() %&gt;%
+    slice(6:51) %&gt;% t() %&gt;% as.tibble()
+  
+  final_table &lt;- reduce(c(table_time, table_lat_long, table_all_details), cbind) %&gt;% as.tibble()
+  
+  #Wait randomly between 1 to 5 minutes
+  runif(1, min = 60, max = 300) %&gt;% Sys.sleep()
+  return(final_table)
+  
+}</code></pre>
+<p>We again use the <code>map_df</code> function to extract information of listed property into a <code>dataframe</code>.</p>
+<pre class="r"><code>NB_dump &lt;- all_ids %&gt;% pull(id) %&gt;% map_df(NB_ind_dump) </code></pre>
+<p>The extracted <code>NB_dump</code> now has 49 features about property listed on the website. We remove some duplicate and invalid features to get our final result.</p>
+<pre class="r"><code>cleaned_table &lt;- NB_dump %&gt;% 
+  select(-14, -16, -17, -18, -21, -22, -26, -28, -30, -32, -34, -36, -38, -40, -42, -43, -44, -46, -48) %&gt;% 
+  set_names(&quot;PostedTime&quot;, &quot;Lat&quot;, &quot;Long&quot;, &quot;SaleType&quot;, &quot;HouseType&quot;, &quot;Address&quot;, &quot;Verified&quot;, &quot;LoanVerified&quot;, &quot;Price&quot;, &quot;Negotiable&quot;, &quot;Area&quot;, &quot;Measure&quot;, &quot;MonthlyEMI&quot;, &quot;Bedrooms&quot;, &quot;Bathrooms&quot;, &quot;FloorType&quot;, &quot;Balconies&quot;, &quot;ShortAddress&quot;, &quot;Bldgtype&quot;, &quot;Age&quot;, &quot;OwnedBy&quot;, &quot;Maintanance&quot;, &quot;FloorType2&quot;, &quot;Area2&quot;, &quot;Furnished&quot;, &quot;Facing&quot;, &quot;FloorOn&quot;, &quot;Parking&quot;, &quot;PowerBackup&quot;, &quot;WaterSupply&quot;)</code></pre>
+<p>Here is a glimpse of our final result.</p>
+<pre class="r"><code>cleaned_table %&gt;% 
+  head() %&gt;% 
+  select(2:6) %&gt;% 
+  DT::datatable(rownames = FALSE)</code></pre>
+<div id="htmlwidget-13dc61df96160ede8399" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-13dc61df96160ede8399">{"x":{"filter":"none","data":[["19.076170493565645","19.247946","19.20762825","19.0018583","19.1363246","19.20308359427956"],["72.86627361349178","72.85635260000004","72.83790588","72.83836489999999","72.82765999999992","72.82789750625511"],["Resale","Resale","Resale","Resale","Resale","Resale"],["2 BHK for sale,\nBright apartment","2 BHK for sale,\nVini Garden","1 BHK for sale,\nGreen Arch Housing Socie","1 RK for sale,\nChandrodaya Building","2 BHK for sale,\nDLH Prabhuvandan","1 BHK for sale,\nPooja Enclave CHS"],["Bright Apartment, Bright Apartment, Kolivery Village Ne ...","Vini Garden, Near Mary Immaculate School, Mandpeshwar R ...","Green Arch Housing Society, Anukar Wadi, Sonapor Lane, ...","Chandrodaya Building, Jb Marg, Near Parel Railway Station","Dlh Prabhuvandan, Near Sahakar Shilp Chs, Andheri West ...","Pooja Enclave Chs, Old Link Road"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th>Lat<\/th>\n      <th>Long<\/th>\n      <th>SaleType<\/th>\n      <th>HouseType<\/th>\n      <th>Address<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+<div id="source-and-citation" class="section level2">
+<h2>Source and Citation</h2>
+<p><a href="https://www.nobroker.in/">Nobroker.in</a> - World’s Largest NoBrokrage Property Site.</p>
+<p>Web scraping through rvest <a href="https://cran.r-project.org/web/packages/rvest/vignettes/selectorgadget.html">vignette</a>.</p>
+</div>
 
 
 

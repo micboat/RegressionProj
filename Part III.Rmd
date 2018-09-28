@@ -7,9 +7,9 @@ output: html_document
 DISCARDED, USE IMAGE as Clickbait
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE); library(corrplot); library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE); library(corrplot); library(tidyverse)
 
-nb_data <- readRDS("F:/Vasim/RegressionProj/nb_data.rds")
+nb_data <- readRDS("nb_data.rds")
 
 ```
 

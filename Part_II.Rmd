@@ -9,45 +9,49 @@ output:
 knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 ```
 
-## Dataset
+In this section we will prepare our data for machine learning models. We will perform feature enginering, quality enhancing and Data profiling.
 
-In step one of our project, we extracted data from NoBroker.in. In this step we will prepare our data for machine learning models, i.e we will be looking at data cleaning, quality checking and feature enginering.
+This section is an essential and important part in machine learning process. Here is how Max Kuhn descrbe its importance.
 
-
-> At face value, model building appears straightforward: pick a modeling technique, plug in data, and generate a prediction. While this approach will generate a predictive model, it will most likely not generate a reliable, trustworthy model for predicting new samples. To get this type of model, we must first understand the data and the objective of the modeling.
-
-> --Max Kuhn, Kjell Johnson -  Applied Machine Learning
+> At face value, model building appears straightforward: pick a modeling technique, plug in data, and generate a prediction. While this approach will generate a predictive model, it will most likely not generate a reliable, trustworthy model for predicting new samples. To get this type of model, we must first understand the data and the objective of the modeling -  Applied Machine Learning
 
 ## Read data
 
 The scrapped data can be downloaded [from here](). 
 
-```{r read_data, message=FALSE, warning=FALSE}
+```{r, load_library, read_data, message=FALSE, warning=FALSE}
 
-library(tidyverse); library(plotly); library(DT); library(broom); library(caret)
+library(plotly); library(DT); library(broom); library(caret)
+library(tidyverse); 
 
 nb_data_csv <- read_csv("nb_data.csv")
 
 ```
 
-## Clean Data
+## Feature Enginering
 
-First let us remove unwanted variables from the dataset. These variables are either redundunt such as in LoanVerified or character values such as Address. 
+Some varaibles (columns) in data set are repetative or words such as Address. We remove these variables as they will not be helpful to our model. 
 
-There are only 46 entries for 4+ Bedrooms, since we cannot clearly identify the number of Bedrooms for these entries and they represent only 0.68% of the total data, these can be safely removed.
+There are only 46 (0.68%) entries for 4+ Bedrooms, since we cannot clearly identify the number of Bedrooms we remove them.  
+Note: Since they represent a small fraction of our data, they can be safely removed.
 
-```{r}
+```{r, load_data}
 
 nb_data <- nb_data_csv %>% 
-  select(-Measure, -Verified, -LoanVerified, -SaleType, -Address, -PostedTime, -ShortAddress, -Area2, -MonthlyEMI, -propid, -HouseType, -FloorType2) %>% 
+  select(-Measure, -Verified, -LoanVerified, 
+         -SaleType, -Address, -PostedTime, 
+         -ShortAddress, -Area2, -MonthlyEMI, 
+         -propid, -HouseType, -FloorType2) %>% 
   filter(Bedrooms != "4+ bedrooms")
   
 ```
 
-Convert character columns Price, Bedrooms, Bathrooms etc into numeric columns
+The house price, bedrooms, bathroom and balconies are a combination of figures and words.  
+We convert them to proper figures.
 
+The owned by varaible has low cardinality, we reduce the categories into two groups.
 
-```{r}
+```{r, step_clean}
 
 nb_data <- nb_data %>% 
   separate(Price, c("Amt", "word"), sep = " ") %>% 
@@ -72,46 +76,43 @@ nb_data <- nb_data %>%
 
 ```
 
-## Feature Enginerring
+Next, we scale house price on '000 scale and convert categorical variables into factors.
 
-Lets scale price on '000 scale.
-
-```{r}
+```{r, step_feature_eng}
 nb_data <- nb_data %>% 
   mutate(HousePriceinK = HousePrice/ 1000) %>% 
- # mutate(Maint_sqft = Maint_sqft * Area) %>% 
   select(-HousePrice) %>% 
-  mutate_at(c("Negotiable", "FloorType", "Bldgtype", "Age", "OwnedBy", "Furnished", "Facing", "Parking", "PowerBackup", "WaterSupply"), as.factor) #%>% 
-  # mutate(NoofBedrooms = factor(NoofBedrooms, levels = 0:4, ordered = TRUE)) %>% 
-  # mutate(NoofBathrooms = factor(NoofBathrooms, levels = 0:8, ordered = TRUE)) %>% 
-  # mutate(NoofBalconies = factor(NoofBalconies, levels = 0:11, ordered = TRUE)) %>% 
-  # mutate(NooffloorsinBldg = factor(NooffloorsinBldg, levels = 0:117, ordered = TRUE)) %>% 
-  # mutate(OnFloor = factor(OnFloor, levels = 0:56, ordered = TRUE))
+  mutate_at(c("Negotiable", "FloorType", "Bldgtype", "Age", "OwnedBy", "Furnished", "Facing", "Parking", "PowerBackup", "WaterSupply"), as.factor)
 ```
 
-```{r}
+The Latitude and Longitude can help us to extract zip code using `ggmap` package. The zip code provides us options to identify new variables such as number of schools, hospitals, fire bridage etc. 
+
+Extracting such information is a time consuming task, which can be performed on some other day.
+
+## Enhance Data Quality
+
+### Data Summary
+
+```{r, show_summary_1}
 summary(nb_data)
 ```
 
+From data summary, a few points looks suspicious. A maximum area of 12,83,800 and a monthly maintanance of 18,888 per sq ft!
 
-## Outilers
+### Outilers
 
-From above summary, there are some points that looks suspicious. 
-TODO Specify why Age
+We identified few outlier from summary, next we have a graphical view to identify outliers.
 
-Maximum Area = 1283800 Well thats huge
-Maintanance = 18888 Again Huge
-
-```{r}
+```{r, outlier_1}
 nb_data %>% 
   plot_ly(x = ~Age, y = ~Area) %>% 
   add_boxplot()
   
 ```
 
-From the visualization, we can confirm that there is an outlier in the data. The House Area of the outlier is 12,83,800, well that almost one third of India. Lets remove it and redraw the plot.
+From the above visualization, we confirm that there is an outlier in the data. The House Area of the outlier is 12,83,800. Lets remove it and redraw the plot.
 
-```{r}
+```{r, outlier_2}
 nb_data <- nb_data %>% 
   filter(Area < 10000) 
 
@@ -123,7 +124,7 @@ nb_data%>%
 
 There is still an outlier on the chart. Lets have a close look at it.
 
-```{r}
+```{r, oultier_3}
 nb_data %>% 
   select(Area, NoofBedrooms, NoofBathrooms, NooffloorsinBldg) %>% 
   arrange(desc(Area)) %>% 
@@ -135,16 +136,14 @@ nb_data %>%
 
 ```
 
-Ah! A 14 stored bldg having an area of 9000 with 2 Bedrooms, though it is possible but it seems suspisious. Since we have enough data (considering this project is at a company where data flow is adequate), we will remove this entry as well.
+Ah! A 14 stored bldg having an area of 9000 with 2 Bedrooms, though it is possible but it seems suspisious. For now we will remove this entry as well.
 
-In a similar fashion, we remove maintainance outliers
-
-```{r}
+```{r, oultier_4}
 nb_data <- nb_data %>% 
   filter(Area < 8999)
 ```
 
-```{r}
+```{r, oultier_5}
 nb_data %>% 
   plot_ly(x = ~log(HousePriceinK)) %>% 
   add_histogram()
@@ -152,7 +151,7 @@ nb_data %>%
 
 We have a few more outliers, they are not going away easily, remember 80% of your time!
 
-```{r}
+```{r, oultier_6}
 
 nb_data <- nb_data %>% 
   filter(HousePriceinK > 100)
@@ -167,99 +166,109 @@ nb_data %>%
   
 ```
 
-In a similar fashion we remove outliers for Maintainance
+Using a similar approach, we identify and remove outliers for Maintainance.
 
-```{r}
+```{r, oultier_7}
 nb_data <- nb_data %>% 
   filter(Maint_sqft < 50)
 ```
 
 
-```{r}
+```{r, show_summary_2}
 nb_data %>% summary()
 ```
 
-## Missing Values
+### Missing Values
 
 By using summary we see that
 
-```{r}
+```{r, missing_data}
 nb_data %>% 
   summary() %>% 
   tidy() %>% 
   filter(str_detect(Freq, "NA's")) %>% 
-  select("Variable" = Var2, "NACount" = Freq) #%>% 
-  #knitr::kable()
-  #datatable(class = 'cell-border stripe', options = list(dom = "t"), rownames = FALSE)
+  select("Variable" = Var2, "NACount" = Freq)
 ```
-
-
 
 We will keep this information handy for now and look at various options for imputing in our machine learning process.
 
-Some of the Impute options that we will be testing are:
+Some of the Impute options that we may use are:
 
- 1) Impute as Unkown - since this are categorical variables, we can directly use them as unknown
- 2) K Nearast Neighbour Impute - We can use various distance technqiue to identify neareast neighbour and impute accordingly
- 3) Bagged impute - We will take various sample from our dataset and deicide imputing value based on majority or average in case of numeric.
+ 1) Impute as Unknown - since these are categorical variables, we can directly use them as unknown.  
+ 2) K Nearast Neighbour Impute - We can use a distance technqiue to identify neareast neighbour and impute accordingly.  
+ 3) Bagged impute - We can take various sample from our dataset and deicide imputing value based on majority.  
  
-If you with me so far, lets move to the to Part III of this Machine Learning process - the tidy approach.
-
-## Near Zero Variance
-
-```{r}
-nb_data %>% 
-  select_if(is.numeric) %>% 
-  nearZeroVar(saveMetrics = TRUE)
+```{r, save_nb_data}
+saveRDS(nb_data, "nb_data.rds")
 ```
 
-```{r}
-nb_data %>% 
-  select_if(is.factor) %>% 
-  nearZeroVar(saveMetrics = TRUE)
-```
+## Data Profiling
 
-OwnedBy - we can see near zero variance (nzv column) return TRUE, since this has more repeated column we will remove this.
-
-BldgType also has a high freqRatio, we verified the output and decided to remove it so that our models do not break
-
-```{r}
-nb_data <- nb_data %>% 
-  select(-Bldgtype, -OwnedBy)
-```
-
-
-## Find Linear combinations
-
-```{r}
-nb_data %>% 
-  select_if(is.numeric) %>% 
-  findLinearCombos()
-```
-
-```{r}
-nb_data %>% 
-  summary()
-```
-
-## Correlation
-
-```{r}
-nb_data %>% select_if(is.numeric) %>% stats::cor() %>% corrplot()
-```
+### Correlation
 
 Not surprising, Area is highly correlated with House Price.
 As we move towards north from south, price starts declining.
 similarly for east to west!
 
-```{r}
-saveRDS(nb_data, "nb_data.rds")
+```{r, corr_1}
+nb_data %>% select_if(is.numeric) %>% stats::cor() %>% corrplot()
+```
+
+### Near Zero Variance
+
+If a variable has low cardinality or frequency, they may breakdown your model e.g. they may be picked up in train set and skip by test set.
+
+The concept of near zero variance is best understood through an example. In a conference all members belong to bottom level of managment except a few guest. The near zero variance helps us identify numeric categories that are of lower order.
+
+On the numeric variables we see the **nzv** value as false and hence they are fine!
+
+```{r, nzv_1}
+nb_data %>% 
+  select_if(is.numeric) %>% 
+  nearZeroVar(saveMetrics = TRUE)
+```
+
+On categories we notie **nzv** is true for OwnedBy, giving us an indication that the categories are not spread properly.
+
+The BldgType also has a high freqRatio, we verify the output and remove this predictor so that our model do not break because of low counts of data.
+
+```{r, nza_2}
+nb_data %>% 
+  select_if(is.factor) %>% 
+  nearZeroVar(saveMetrics = TRUE)
 ```
 
 
-## Outcomes
-Impute Missing Value
-No of Bathrooms, No of Balconies <- use step_other
+```{r, nzv_3}
+#use arrnage to add grobs
+nb_data <- nb_data %>% 
+  select(-Bldgtype, -OwnedBy)
+```
 
-check Minimum price on House, Remove Module 3.
+
+### Find Linear combinations
+
+When a dataset has large number of varaible, there are chances that few variables are combination of two or more varaibles.
+
+Example: Total house area is a combination of bedrooms, bathrooms etc, the `findLinearCombos` identify such varaible that are a combination of two are more varaibles within the dataset.
+
+```{r, lin_comb_1}
+nb_data %>% 
+  select_if(is.numeric) %>% 
+  findLinearCombos()
+```
+
+```{r, lin_comb_2}
+nb_data %>% 
+  summary()
+```
+
+### Normal Distribution
+
+```{r}
+
+```
+
+
+Now that we are ready with our data lets proceed to build models.
 

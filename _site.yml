@@ -1,6 +1,6 @@
-name: "my-website"
+name: "Machine Learning - A tidy approach"
 navbar:
-  title: "Machine Learning"
+  title: "Machine Learning - A tidy approach"
   left:
     - text: "Home"
       href: index.html
@@ -9,10 +9,14 @@ navbar:
     - text: "Data Cleaning"
       href: Part_II.html
     - text: "Model Design"
-      href: Part_IV_ML.html
-    - text: "Deploy"
-      href: Part III.html
-      
+      href: PartIVML.html
+    - text: "Linear Regression"
+      href: stats.html
+#    - text: "Deploy"
+#      href: Part III.html
+#    - text: "Tableau"
+#      href: tableau_iframe.html
+    
 output_dir: "docs"
 
 output:

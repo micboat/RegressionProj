@@ -1,0 +1,32 @@
+---
+title: "stats"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    collapsed: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Why seperate
+
+
+## Multiple Linear Regression
+
+
+## Assumptions
+
+
+## Model
+
+
+## Assumption test
+
+
+## Post hoc analysis
+

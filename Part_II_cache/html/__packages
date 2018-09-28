@@ -9,10 +9,9 @@ purrr
 dplyr
 stringr
 forcats
-leaflet
 plotly
-bindrcpp
 DT
 broom
 lattice
 caret
+bindrcpp
