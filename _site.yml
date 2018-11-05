@@ -14,8 +14,6 @@ navbar:
       href: stats.html
 #    - text: "Deploy"
 #      href: Part III.html
-#    - text: "Tableau"
-#      href: tableau_iframe.html
     
 output_dir: "docs"
 

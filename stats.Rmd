@@ -12,21 +12,227 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r message=FALSE, warning=FALSE}
+library(tidyverse); library(tidymodels); library(DT)
 
-## Why seperate
+nb_data <- readRDS("nb_data.rds")
+```
+
+
+## Why separate Model
+
+Unlike modern modelling technique, linear regression is an explainable model. We can clearly identify the varaibles and their influence on the model.  
+
+Various fields require explainable model, e.g. regulatary requirements, government law etc.
+
+## Assumptions
+
+Linear regression requires certain assumptions of data. Some of these assumptions can be tested prior the model and some post
+
+1) Data should be normally distrubuted - We have already seen in Data cleaning that the log transformed values of house price is normally distributed.
+
+2) Observation should be above 30 - We have much above the requirement.
+
+3) Hetroskadasticity - This will be tested post model, it simply means that the variance between predicted prices and residuals should be equal at different intervals.
+
+## Pre-process
+
+```{r}
+set.seed(42)
+
+train_test_split <- initial_split(nb_data)
+
+nb_train <- training(train_test_split)
+nb_test <- testing(train_test_split)
+
+rec_obj <- recipe(HousePriceinK ~ ., data = nb_train) %>%
+  step_knnimpute(all_predictors()) %>%
+  #step_dummy(all_predictors(), -all_numeric()) %>% 
+  step_log(all_outcomes())
+
+prepare_rec <- rec_obj %>% prep(training = nb_train)
+
+train_data <- prepare_rec %>% 
+  bake(nb_train) %>% 
+  select(-HousePriceinK, everything())
+
+test_data <- prepare_rec %>% 
+  bake(nb_train) %>% 
+  select(-HousePriceinK, everything())
+
+x_col <- 1:19 
+y_col <- 20 
+```
 
 
 ## Multiple Linear Regression
 
+## Scatter plot
 
-## Assumptions
+```{r}
+
+train_data %>% 
+  ggplot(aes(HousePriceinK, Area)) + 
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+## GGpairs
+
+```{r message=FALSE, warning=FALSE}
+
+GGally::ggpairs(train_data)
+
+```
 
 
 ## Model
 
+```{r}
+
+lm_model <- lm(HousePriceinK ~ ., data = train_data)
+
+summary(lm_model)
+#broom::tidy(lm_model) %>% datatable(rownames = FALSE, options = list(dom = "t"))
+
+```
+
+# Significant varaibles
+
+Inorder to identify the important variables we check the pvalues (Pr(>|t|) column). 
+
+
+```{r}
+
+tibble(
+  Actual = train_data$HousePriceinK %>% exp(),
+  estimate = predict(lm_model, data = train_data[x_col]) %>% exp()
+) %>% 
+  rmse(Actual, estimate)
+```
+
+
+
+```{r}
+anova(lm_model)
+```
+
+```{r}
+lm_model_2 <- lm(HousePriceinK ~ . -OwnedBy
+                 -Facing -NooffloorsinBldg
+                 -PowerBackup, data = train_data)
+
+anova(lm_model_2)
+```
+
+```{r}
+
+tibble(
+  Actual = train_data$HousePriceinK %>% exp(),
+  estimate = predict(lm_model_2, data = train_data[x_col]) %>% exp()
+) %>% 
+  rmse(Actual, estimate)
+```
+
+```{r}
+df <- broom::augment(lm_model_2) %>% 
+  mutate(index = row_number())
+```
+
 
 ## Assumption test
 
+https://www.statmethods.net/stats/rdiagnostics.html
 
-## Post hoc analysis
+https://www.r-bloggers.com/regression-diagnostics-with-r/
 
+https://data.library.virginia.edu/diagnostic-plots/
+
+```{r}
+plot(lm_model_2)
+```
+
+
+## Normal Distribution of error
+
+```{r}
+
+a <- tibble(
+  x = fitted.values(lm_model_2),
+  y = residuals(lm_model_2)
+) %>% 
+  ggplot(aes(sample = y)) + geom_qq() + geom_qq_line()
+
+b <- tibble(
+  x = fitted.values(lm_model_2),
+  y = residuals(lm_model_2)
+) %>% 
+  ggplot(aes(y)) + geom_histogram()
+
+
+gridExtra::grid.arrange(a, b, ncol = 2)
+
+```
+
+
+### Hetroskadasticity
+
+Means something is missing, probably interaction
+
+```{r}
+tibble(
+  x = fitted.values(lm_model_2),
+  y = residuals(lm_model_2)
+) %>% 
+  ggplot(aes(x, y)) + 
+  geom_point() + 
+  labs(x = "Fitted Values", y = "Residuals", title = "Hetroskadasticity")
+  
+```
+
+
+# Cooks Distance
+
+https://www.r-bloggers.com/regression-diagnostic-plots-using-r-and-plotly/
+
+https://stackoverflow.com/questions/48964719/how-to-remove-outliers-from-cooks-distance-in-r
+
+```{r}
+#If this is less than 4 then keep else discard
+#plot(cooks.distance(lm_model_2))
+
+tibble(
+  x = cooks.distance(lm_model_2),
+  y = rstandard(lm_model_2)
+) %>% 
+  ggplot(aes(x, y)) + 
+  geom_point()
+
+#?cooks.distance
+
+```
+
+# Multicollinearity
+
+VIF is in danger zone if bigger than 10 and tolerance if less than 0.1
+
+```{r}
+car::vif(lm_model_2)
+
+```
+
+
+# Autocorrelation
+
+residuals from a linear model are correlated or not. A stat of 2 is bad -approx.
+
+```{r}
+car::durbinWatsonTest(lm_model_2)
+```
+
+
+
+# Near zero variance and linear predictors
+ALready done!
+
+# Interaction?

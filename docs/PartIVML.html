@@ -13,7 +13,7 @@
 
 <title>Model Design</title>
 
-<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<script src="site_libs/jquery-1.12.4/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
@@ -23,9 +23,16 @@
 <link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
 <script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
-<script src="site_libs/navigation-1.1/codefolding.js"></script>
 <link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/htmlwidgets-1.2/htmlwidgets.js"></script>
+<link href="site_libs/datatables-css-0.0.0/datatables-crosstalk.css" rel="stylesheet" />
+<script src="site_libs/datatables-binding-0.4/datatables.js"></script>
+<link href="site_libs/dt-core-1.10.16/css/jquery.dataTables.min.css" rel="stylesheet" />
+<link href="site_libs/dt-core-1.10.16/css/jquery.dataTables.extra.css" rel="stylesheet" />
+<script src="site_libs/dt-core-1.10.16/js/jquery.dataTables.min.js"></script>
+<link href="site_libs/crosstalk-1.0.0/css/crosstalk.css" rel="stylesheet" />
+<script src="site_libs/crosstalk-1.0.0/js/crosstalk.min.js"></script>
 
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
@@ -166,14 +173,6 @@ $(document).ready(function () {
 </script>
 
 <!-- code folding -->
-<style type="text/css">
-.code-folding-btn { margin-bottom: 4px; }
-</style>
-<script>
-$(document).ready(function () {
-  window.initializeCodeFolding("show" === "show");
-});
-</script>
 
 
 
@@ -318,14 +317,6 @@ div.tocify {
 
 <div class="fluid-row" id="header">
 
-<div class="btn-group pull-right">
-<button type="button" class="btn btn-default btn-xs dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
-<ul class="dropdown-menu" style="min-width: 50px;">
-<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
-<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
-</ul>
-</div>
-
 
 
 <h1 class="title toc-ignore">Model Design</h1>
@@ -333,7 +324,8 @@ div.tocify {
 </div>
 
 
-<p>In this phase we will be preparing various regression models for predicting house prices.</p>
+<p>Here we will prepare various regression models for predicting house prices and choose a final model. We will start off in <code>tidymodel</code> style and later use the famous <code>caret</code> package to build model.</p>
+<p>This is a long article as we follow a step by step detailed instruction. I would recommend not to miss the end part explaining black box model, a relatively new concept that helps us to decode black box models.</p>
 <div id="which-model-to-select" class="section level2">
 <h2>Which model to select?</h2>
 <p>Borrowed from Aurélien Géron “Hands on ML” book, we will use the following steps to reach promising models.</p>
@@ -346,16 +338,18 @@ div.tocify {
 <li>Have a quick round of feature selection and engineering.</li>
 <li>Short-list the top three to five most promising models, preferring models that make different types of errors.</li>
 </ol>
-<pre class="r"><code>library(plyr);library(tidyverse); library(caret); library(tidymodels); library(ranger)
+<pre class="r"><code>#plyr library is just to avoid conflicts with dplyr
+
+library(plyr);library(tidyverse); library(caret); library(tidymodels); library(DT)
 
 library(ranger); library(xgboost); library(glmnet); library(e1071); library(pls); library(Cubist); library(earth); library(Cubist); library(DALEX); library(breakDown)
 
 nb_data &lt;- readRDS(&quot;nb_data.rds&quot;)</code></pre>
+<p>Download nb_data.rds</p>
 </div>
 <div id="split-data" class="section level2">
 <h2>Split Data</h2>
-<p>Lets split our data in test and training set. We will use the rsample package for split</p>
-<p>Note:- nb_data is already loaded in our workspace. It can be downloaded from here.</p>
+<p>Lets split our data in test and training set. We will use the rsample package for split.</p>
 <pre class="r"><code>set.seed(42)
 
 train_test_split &lt;- initial_split(nb_data)
@@ -365,44 +359,13 @@ nb_test &lt;- testing(train_test_split)</code></pre>
 </div>
 <div id="pre-process" class="section level2">
 <h2>Pre Process</h2>
-<p>Lets impute missing values. We alrady have the missing value stats with us (from module 1), lets recollect it.</p>
-<table>
-<thead>
-<tr class="header">
-<th>Features</th>
-<th>Missing values</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>FloorType</td>
-<td>209</td>
-</tr>
-<tr class="even">
-<td>Facing</td>
-<td>1153</td>
-</tr>
-<tr class="odd">
-<td>PowerBackup</td>
-<td>4229</td>
-</tr>
-<tr class="even">
-<td>WaterSupply</td>
-<td>116</td>
-</tr>
-</tbody>
-</table>
-<p>Since we will run multiple models, first lets create a structure for our model i.e. set preprocessing steps to our model.</p>
+<p>Lets impute missing values. We already have the missing value information from data cleaning.</p>
+<p>As we will prepare multiple models, lets create a structure for our model i.e. set preprocessing steps to our model.</p>
 <pre class="r"><code>rec_obj &lt;- recipe(HousePriceinK ~ ., data = nb_train) %&gt;% #1
   step_knnimpute(all_predictors()) %&gt;%  #2
-  #step_other(NoofBathrooms, NoofBalconies, threshold = 0.05) %&gt;%
-  step_dummy(all_predictors(), -all_numeric()) #%&gt;% #3
-  #step_log(all_outcomes()) %&gt;% 
-  #prep(training = nb_train) #4
+  step_dummy(all_predictors(), -all_numeric()) #3
 
-#step_bs(Lat, Long)
-
-prepare_rec &lt;- rec_obj %&gt;% prep(training = nb_train)
+prepare_rec &lt;- rec_obj %&gt;% prep(training = nb_train) #4
 
 train_data &lt;- prepare_rec %&gt;% #5
   bake(nb_train) %&gt;% 
@@ -412,10 +375,19 @@ test_data &lt;- prepare_rec %&gt;% #5
   bake(nb_train) %&gt;% 
   select(-HousePriceinK, everything())
 
-x_col &lt;- 1:35
-y_col &lt;- 36</code></pre>
-<p>Let’s understand what are we doing in above code!</p>
-<p>1 - Creating a structure for our model, the data argument is just to identify variables. 2 - Impute missing value through KNN algorithim, the default K is 5. 3 - Convert nominal data into numeric hot encoding. 4 - Run preprocess step on our data 5 - Apply our preprossing steps on training and test set.</p>
+x_col &lt;- 1:39 #35
+y_col &lt;- 40 #36</code></pre>
+<ol style="list-style-type: decimal">
+<li>Creating a structure for our model, the data argument is just to identify variables.<br />
+</li>
+<li>Impute missing value through KNN algorithm, the default value is 5.<br />
+</li>
+<li>Convert nominal data into numeric hot encoding.<br />
+</li>
+<li>Run reprocess step on our data.<br />
+</li>
+<li>Apply our prepossessing steps on training and test set.</li>
+</ol>
 <p>We can apply various preprocessing steps such as stp_center, step_scale, etc from the <a href="https://tidymodels.github.io/recipes/index.html">recipes</a> package.</p>
 </div>
 <div id="train-model" class="section level2">
@@ -431,9 +403,10 @@ y_col &lt;- 36</code></pre>
 <li>Principal Component Regression (PCR)</li>
 <li>Cubist</li>
 <li>Multivariate Adaptive Regression Splines (MARS)</li>
-<li>Other</li>
+<li>Other (Polynomial?)</li>
+<li>Linear Regression <a href="#stats">see here</a></li>
 </ol>
-<p>Click here to move to resutls</p>
+<p>Click <a href="#compare_performance">here</a> to directly move to results instead!</p>
 <div id="random-forest" class="section level4">
 <h4>Random Forest</h4>
 <p>Random Forests work by training many Decision Trees on random subsets of the features, then averaging out their predictions.</p>
@@ -451,6 +424,7 @@ rf_prediction &lt;- rf_model %&gt;%
 <pre class="r"><code>library(xgboost)
 
 xgb_model &lt;- xgboost(data = as.matrix(train_data[x_col]), label = as.matrix(train_data[y_col]), nrounds = 500, verbose = 0)
+
 xg_prediction &lt;- xgb_model %&gt;% 
   predict(as.matrix(train_data[x_col]))</code></pre>
 </div>
@@ -502,7 +476,7 @@ pcr_predict &lt;- pcr_model %&gt;%
 </div>
 <div id="cubist" class="section level4">
 <h4>Cubist</h4>
-<p>Like xgBoost, Cubist is a boosting techinque plus it also performs neighbour based instance techinque to get result.</p>
+<p>Like xgBoost, Cubist is a boosting technique plus it also performs neighbor based instance technique to get result.</p>
 <pre class="r"><code>library(Cubist)
 
 cubist_model &lt;- cubist(x = as.matrix(train_data[x_col]), y = as.matrix(train_data[y_col]), committees = 5)
@@ -530,7 +504,8 @@ mars_predict &lt;- mars_model %&gt;%
 <div id="compare-performance" class="section level2">
 <h2>Compare Performance</h2>
 <p>For a regression problem, the Root Mean Square Error - RMSE is a best indicator of performance</p>
-<pre class="r"><code># Since house price was transformed to log values, we convert it back using exp()
+<pre class="r"><code># Collate all predicted values
+
 results &lt;- tibble(
   Actual = train_data$HousePriceinK,
   RF = rf_prediction,
@@ -545,6 +520,7 @@ results &lt;- tibble(
   #MLR = lm_predict %&gt;% as.vector()
 )
 
+# Calculate RMSE from yardstick::rmse
 
 RMSE &lt;- tibble(
   RMSE_RF = results %&gt;% rmse(Actual, RF),
@@ -557,47 +533,44 @@ RMSE &lt;- tibble(
   RMSE_Cubist = results %&gt;% rmse(Actual, cubist),
   RMSE_MARS = results %&gt;% rmse(Actual, MARS)
   #RMSE_MLR = results %&gt;% rmse(Actual, MLR),
-  
 ) %&gt;% 
   gather(key = &quot;Model&quot;, value = &quot;RMSE&quot;) %&gt;% 
   arrange(RMSE)
 
-RMSE</code></pre>
-<pre><code>## # A tibble: 9 x 2
-##   Model         RMSE
-##   &lt;chr&gt;        &lt;dbl&gt;
-## 1 RMSE_XGB      219.
-## 2 RMSE_RF      4506.
-## 3 RMSE_Cubist  6805.
-## 4 RMSE_SVR     8305.
-## 5 RMSE_MARS    9203.
-## 6 RMSE_PCR     9889.
-## 7 RMSE_Lasso   9895.
-## 8 RMSE_Elastic 9897.
-## 9 RMSE_Ridge   9937.</code></pre>
-<pre class="r"><code>rm(results, mars_model, mars_predict, cubist_predict, cubist_model, pcr_model, pcr_predict, svr_model, svr_predict, elastic_model, elastic_predict, lasso_model, lasso_predict, ridge_model, ridge_predict, xgb_model, xg_prediction, rf_model, rf_prediction, train_test_split)</code></pre>
-<p>With default values of the model, we can see that xgBoost turns out to provide the best performance. But these values do not provide a measurement of spread.</p>
-<p>Next we will use cross validation technique to evaluate overfitting of models and imporve model performance. Further to that we will check if tuning model hyperparameters could help to increase performance.</p>
+RMSE %&gt;% 
+  datatable(rownames = FALSE, options = list(dom = &quot;t&quot;)) %&gt;% 
+  formatRound(2)</code></pre>
+<div id="htmlwidget-ed0e467c0528dc630c8c" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-ed0e467c0528dc630c8c">{"x":{"filter":"none","data":[["RMSE_XGB","RMSE_RF","RMSE_Cubist","RMSE_SVR","RMSE_MARS","RMSE_Lasso","RMSE_Elastic","RMSE_Ridge","RMSE_PCR"],[219.24273847885,4359.28211429299,7003.57684265237,8431.63949979694,9114.14598629255,9796.11889641595,9799.96074572569,9837.95917929192,10072.4973835592]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th>Model<\/th>\n      <th>RMSE<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":1}],"order":[],"autoWidth":false,"orderClasses":false,"rowCallback":"function(row, data) {\nDTWidget.formatRound(this, row, data, 1, 2, 3, ',', '.');\n}"}},"evals":["options.rowCallback"],"jsHooks":[]}</script>
+<p>With default values of the model, we notice that xgBoost provides the best performance, but presumably it also overfits.</p>
+<p>Next, lets use cross validation technique to evaluate over-fitting of models. Later on, we will tune hyper-parameters of models to check for better performance.</p>
 </div>
 <div id="cross-validation" class="section level2">
 <h2>Cross Validation</h2>
-<p>Lets create cross validation samples of our data. We will create 10 cross validation set.</p>
+<p>We will create a 10 cross validation set, each repeated 10 times. <a href="https://www.kaggle.com/dansbecker/cross-validation">Here</a> is a short introduction for cross validation.</p>
 <pre class="r"><code>set.seed(42)
 
-#Create 10 splits of data, repeat it for 5 times i.e create 50 samples.
+# Create 10 splits of data, repeat it for 5 times i.e create 50 samples.
 cv_train &lt;- nb_train %&gt;% vfold_cv(v = 10, repeats = 10)
 
-first_sample &lt;- cv_train$splits[[1]]
-
-dim(first_sample)</code></pre>
+# First set
+dim(cv_train$splits[[1]])</code></pre>
 <pre><code>##   analysis assessment          n          p 
-##       4482        499       4981         18</code></pre>
-<p>As we see for a single sample we have total 4986 observation, this will create approx 4487 (90%) observation to perform training and approx 499 (10%) observation for testing purpose.</p>
-<p>Recipe should be applied on assessment set, so that blanks are imputed accordingly.</p>
-<pre class="r"><code>multiple_model &lt;- function(split, ...){
+##       4482        499       4981         20</code></pre>
+<p>In our train set we have 4,986 observation, with cross validation approx 4487 (90%) observation will be used to train and approx 499 (10%) observation will be used to test. This entire process will be repeated 10 times</p>
+<pre class="r"><code># Function Start
 
-cv_trainset &lt;- prepare_rec %&gt;% bake(analysis(split)) %&gt;% select(-HousePriceinK, everything())
-cv_testset &lt;- prepare_rec %&gt;% bake(assessment(split)) %&gt;% select(-HousePriceinK)
+multiple_model &lt;- function(split, ...){
+
+cv_trainset &lt;- prepare_rec %&gt;% 
+  bake(analysis(split)) %&gt;% 
+  select(-HousePriceinK, everything())
+
+cv_testset &lt;- prepare_rec %&gt;% 
+  bake(assessment(split)) %&gt;% 
+  select(-HousePriceinK)
+
+# This looks conjusted, all we doing is repeating the single model with new cross validation data sets.
 
 rfmod &lt;- ranger(HousePriceinK ~ ., data = cv_trainset, num.trees = 500)
 xgmod &lt;- xgboost(data = as.matrix(cv_trainset[x_col]), label = as.matrix(cv_trainset[y_col]), nrounds = 500, verbose = 0)
@@ -609,6 +582,9 @@ pcrmodel &lt;- pcr(HousePriceinK ~ ., data = cv_trainset)
 cubistmod &lt;- cubist(x = as.matrix(train_data[x_col]), y = as.matrix(train_data[y_col]), committees = 5)
 marsmod &lt;- earth(HousePriceinK ~ ., data = cv_trainset)
 #lmmod &lt;- lm(HousePriceinK ~ ., data = cv_trainset)
+
+
+# Store predictions on each cross validation samples
 
 cv_results &lt;- tibble(
   actual = assessment(split) %&gt;% select(HousePriceinK) %&gt;% pull(),
@@ -640,16 +616,21 @@ cv_RMSE &lt;- tibble(
 
 }
 
+# Function End
+
+# Run the multiple model function on each cross validation split
 cv_train$RMSE &lt;- map(cv_train$splits, multiple_model)
 
 cv_train &lt;- cv_train %&gt;%
   unnest(RMSE)
 
-saveRDS(cv_train, &quot;cv_rsample.rds&quot;)</code></pre>
+#saveRDS(cv_train, &quot;cv_rsample.rds&quot;)</code></pre>
 </div>
 <div id="post-hoc-analysis" class="section level2">
 <h2>Post-hoc Analysis</h2>
-<p>Lets convert the RMSE dataset into tidy format and identify some statistics.</p>
+<div id="model-statistics" class="section level3">
+<h3>Model statistics</h3>
+<p>We now have 50 RMSE scores, let’s analyze.</p>
 <pre class="r"><code>stacked_rmse &lt;- cv_train %&gt;% 
   gather(key = &quot;model&quot;, value = &quot;statistic&quot;, -splits, -id, -id2) 
 
@@ -659,22 +640,14 @@ stacked_rmse %&gt;%
             SD = sd(statistic), 
             Min = min(statistic), 
             Max = max(statistic)
-            )</code></pre>
-<pre><code>##    Average       SD     Min      Max
-## 1 9243.058 1920.315 4179.81 14681.65</code></pre>
-<p>Well, here we have quite a lot of information to infer decision.</p>
-<p>Null Hypothesis :-</p>
-<p>Alternate Hypothesis :-</p>
-<pre class="r"><code>aov(log(statistic) ~ model, data = stacked_rmse) %&gt;% anova()</code></pre>
-<pre><code>## Analysis of Variance Table
-## 
-## Response: log(statistic)
-##            Df Sum Sq Mean Sq F value    Pr(&gt;F)    
-## model       9 17.478 1.94202  65.747 &lt; 2.2e-16 ***
-## Residuals 990 29.242 0.02954                      
-## ---
-## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
-<p>Lets graphically view these statistics.</p>
+            ) %&gt;% 
+  datatable(rownames = FALSE, options = list(dom = &quot;t&quot;)) %&gt;% 
+  DT::formatRound(2:5)</code></pre>
+<div id="htmlwidget-6b48a4d6236dc6ef8592" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-6b48a4d6236dc6ef8592">{"x":{"filter":"none","data":[[9169.60158301322],[1949.94433006836],[4179.8103240219],[14681.6469895705]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th>Average<\/th>\n      <th>SD<\/th>\n      <th>Min<\/th>\n      <th>Max<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[0,1,2,3]}],"order":[],"autoWidth":false,"orderClasses":false,"rowCallback":"function(row, data) {\nDTWidget.formatRound(this, row, data, 1, 2, 3, ',', '.');\nDTWidget.formatRound(this, row, data, 2, 2, 3, ',', '.');\nDTWidget.formatRound(this, row, data, 3, 2, 3, ',', '.');\nDTWidget.formatRound(this, row, data, 4, 2, 3, ',', '.');\n}"}},"evals":["options.rowCallback"],"jsHooks":[]}</script>
+</div>
+<div id="graphical-representaion-of-models" class="section level3">
+<h3>Graphical Representaion of models</h3>
 <pre class="r"><code>stacked_rmse %&gt;% 
   ggplot(aes(fct_reorder(model, statistic, median, .desc = TRUE), statistic, fill = model)) + 
   geom_boxplot(notch = TRUE) + 
@@ -684,33 +657,53 @@ stacked_rmse %&gt;%
   scale_fill_viridis_d(option = &quot;D&quot;) +
   theme(legend.position = &quot;none&quot;)</code></pre>
 <p><img src="PartIVML_files/figure-html/graph_one-1.png" width="672" /></p>
-<p>We started with ten models, and are now left with five! One intresting point to note here is all Linear modelling techniques are dropped.</p>
-<p>Although Cubist has the best performance but it some variations.</p>
-<p>Lets have a different graphical view of our selected models.</p>
-<pre class="r"><code>stacked_rmse %&gt;% 
-  filter(!model %in% c(&quot;Ridge&quot;,&quot;MARS&quot;, &quot;PCR&quot;, &quot;ElasticNet&quot;, &quot;Lasso&quot;, &quot;SVR&quot;)) %&gt;%
+<p>From the above visualization we observe that cubist, xgboost and RandomForest are the top three models. Although Cubist has the best performance but it some variations.</p>
+<p>For this project we will select this three models and optimize their performance to see if they can be improved further.</p>
+<!--
+
+Lets have a different graphical view of our selected models.
+
+
+```r
+stacked_rmse %>% 
+  filter(!model %in% c("Ridge","MARS", "PCR", "ElasticNet", "Lasso", "SVR")) %>%
   ggplot(aes(x = fct_reorder(model, statistic, mean, .desc = TRUE), y = statistic, group = paste(id, id2), col = paste(id, id2))) + 
     geom_line(alpha = .75) + 
-    theme(legend.position = &quot;none&quot;) +
-    labs(x = &quot;Model&quot;, y = &quot;RMSE&quot;)</code></pre>
-<p><img src="PartIVML_files/figure-html/graph_two-1.png" width="672" /></p>
-<pre class="r"><code>stacked_rmse %&gt;%  
-  filter(model %in% c(&quot;Cubist&quot;, &quot;xgboost&quot;, &quot;randomforest&quot;)) %&gt;% 
+    theme(legend.position = "none") +
+    labs(x = "Model", y = "RMSE")
+```
+
+<img src="PartIVML_files/figure-html/graph_two-1.png" width="672" />
+
+
+
+
+```r
+stacked_rmse %>%  
+  filter(model %in% c("Cubist", "xgboost", "randomforest")) %>% 
   ggplot(aes(col = model, x = log(statistic))) + 
-  geom_line(stat = &quot;density&quot;, trim = FALSE, size = 1) +
+  geom_line(stat = "density", trim = FALSE, size = 1) +
   scale_color_viridis_d() +
-  theme_classic()</code></pre>
-<p><img src="PartIVML_files/figure-html/graph_three-1.png" width="672" /></p>
+  theme_classic()
+```
+
+<img src="PartIVML_files/figure-html/graph_three-1.png" width="672" />
+
+-->
+</div>
 </div>
 <div id="hyperparameters-tuning" class="section level2">
 <h2>Hyperparameters tuning</h2>
-<p>Now we have finalized five models, we will now tune the hyperparameters of these models and identify the best techniques, again using cross-validation.</p>
+<p>Various models needs manual parameters, like KNN needs number of nearest neighbor, randomForest needs number of trees to build. We need to tune this hyper-parameters and identify the best ones that optimize our results.</p>
+<p>We will now tune the hyper-parameters of the selected three models to identify the best parameters.</p>
+<div id="cross-validation-1" class="section level3">
+<h3>Cross validation</h3>
 <pre class="r"><code>set.seed(42)
 
 ctrl &lt;- trainControl(method = &quot;repeatedcv&quot;, number = 10, repeats = 10, savePredictions = TRUE, allowParallel = TRUE)</code></pre>
 <div id="cubist-1" class="section level4">
 <h4>Cubist</h4>
-<p>At first iteration we use committees 1, 10, 50, 100.</p>
+<p>Cubist has two hyper-parameters, committees and neighbors.</p>
 <pre class="r"><code>set.seed(42)
 
 cub_grid &lt;- expand.grid(committees = c(50, 100),
@@ -733,11 +726,11 @@ tibble(
   cub_pred = cub_pred
 ) %&gt;% 
   rmse(Actual, cub_pred)</code></pre>
-<pre><code>## [1] 4669.224</code></pre>
-<p>When 100, 500 and 1000 are used 100 gives rmse 2305.542</p>
+<pre><code>## [1] 4694.769</code></pre>
 </div>
 <div id="xgboost-1" class="section level4">
 <h4>xgBoost</h4>
+<p>The xgboost model has number of rounds, maximum depth to build, eta, gamma, column sample by tree, minimum child weight and subsample hyper-parameters.</p>
 <pre class="r"><code>set.seed(42)
 
 xgb_grid &lt;- expand.grid(
@@ -766,10 +759,11 @@ tibble(
   xgb_pred = xgb_pred
 ) %&gt;% 
   rmse(Actual, xgb_pred)</code></pre>
-<pre><code>## [1] 2270.983</code></pre>
+<pre><code>## [1] 2304.692</code></pre>
 </div>
 <div id="randomforest" class="section level4">
 <h4>RandomForest</h4>
+<p>RandomForest has mtry - number of features to use, splitrule and minimum node size hyper-parameters.</p>
 <pre class="r"><code>#start &lt;- Sys.time()
 
 set.seed(42)
@@ -799,8 +793,12 @@ tibble(
   rf_pred = rf_pred
 ) %&gt;% 
   rmse(Actual, rf_pred)</code></pre>
-<pre><code>## [1] 4066.907</code></pre>
-<p>Group RMSE</p>
+<pre><code>## [1] 4096.116</code></pre>
+<p>Note: The <code>caret</code> package supports 256 models, the hyper parameters of these models can be found here.</p>
+</div>
+</div>
+<div id="group-rmse" class="section level3">
+<h3>Group RMSE</h3>
 <pre class="r"><code>com_pred &lt;- tibble(
   Actual = train_data$HousePriceinK,
   cub_pred = cub_pred,
@@ -820,14 +818,14 @@ optimize_RMSE %&gt;%
 <pre><code>## # A tibble: 3 x 2
 ##   model         RMSE
 ##   &lt;chr&gt;        &lt;dbl&gt;
-## 1 xgboost      2271.
-## 2 randomforest 4067.
-## 3 cubist       4669.</code></pre>
+## 1 xgboost      2305.
+## 2 randomforest 4096.
+## 3 cubist       4695.</code></pre>
+<p>In the above table we observe that after tuning the hyper-parameters of our models, xgboost has the best performance. Before we zero down on this model, lets try the model with different seeds.</p>
 </div>
-</div>
-<div id="try-with-different-seeds" class="section level2">
-<h2>Try with different seeds</h2>
-<p>Now that we have drilled down to a single model, lets try it with different seeds.</p>
+<div id="different-seeds" class="section level3">
+<h3>Different seeds</h3>
+<p>Remember, xgboost creates sample of our datasets. We can use seeds to reproduce our results. We will use various seeds to test if initial seed had any influence on our model.</p>
 <pre class="r"><code>blank &lt;- tibble(Actual = train_data$HousePriceinK)
 
 multiple_seed &lt;- function(seedno, recipe, data, ...){
@@ -851,7 +849,7 @@ multiple_seed &lt;- function(seedno, recipe, data, ...){
   return(blank)
 }
 
-with_seeds &lt;- map(c(1, 100), multiple_seed, recipe = rec_obj, data = nb_data)</code></pre>
+with_seeds &lt;- map(c(1, 100, 500, 1000), multiple_seed, recipe = rec_obj, data = nb_data)</code></pre>
 <pre class="r"><code>rmse_multiple_seed &lt;- as.data.frame(with_seeds) %&gt;% as.tibble() %&gt;% select(Actual, n1, n100, n500, n1000) %&gt;% mutate(n42 = xgb_train %&gt;% predict(train_data[x_col]))
 
 rmse_various_seeds &lt;- tibble(
@@ -868,27 +866,31 @@ rmse_various_seeds %&gt;%
 ##   Seed_No  RMSE
 ##   &lt;chr&gt;   &lt;dbl&gt;
 ## 1 n1      2721.
-## 2 n42     2271.
+## 2 n42     2305.
 ## 3 n100    2581.
 ## 4 n500    2595.
 ## 5 n1000   2660.</code></pre>
 </div>
+</div>
 <div id="final-model" class="section level2">
 <h2>Final Model</h2>
-<p>With above we conclude that xgBoost generalizes well on training dataset and is the final model that should be selected.</p>
-<p>We will hot the final nail in the cofin by seeing how does it perform on unseen data.</p>
-</div>
-<div id="generalization" class="section level2">
-<h2>Generalization</h2>
+<p>From above, we observe that xgBoost gives the best performance on training dataset. For now, we select it as our final model and use it on test data to evaluate generalization.</p>
+<div id="generalization" class="section level3">
+<h3>Generalization</h3>
 <pre class="r"><code>tibble(
   Actual = test_data %&gt;% pull(HousePriceinK),
   Prediction = xgb_train %&gt;% predict(test_data[x_col])
 ) %&gt;% 
   rmse(Actual, Prediction)</code></pre>
-<pre><code>## [1] 2227.698</code></pre>
+<pre><code>## [1] 2254.172</code></pre>
+<p>As the RMSE on the test data is similar to the one of train data, we can conclude that it generalize well on unseen data.</p>
 </div>
-<div id="identify-important-varaibles." class="section level2">
-<h2>Identify important varaibles.</h2>
+</div>
+<div id="explaining-black-box-models" class="section level2">
+<h2>Explaining Black box models</h2>
+<div id="identify-important-varaibles." class="section level3">
+<h3>Identify important varaibles.</h3>
+<p>Even though we have finalized our model, just for the sake of this post we will identify important variables of our top three models</p>
 <pre class="r"><code>library(DALEX); library(breakDown)
 
 xgb_explainer &lt;- xgb_train %&gt;% 
@@ -900,13 +902,10 @@ rf_explainer &lt;- rf_train %&gt;%
 cubist_explainer &lt;- cubist_train %&gt;% 
   explain(label = &quot;Cubist&quot;, data = train_data, y = train_data$HousePriceinK)
 
-plot(model_performance(xgb_explainer), 
-     model_performance(rf_explainer), 
-     model_performance(cubist_explainer)
-     )</code></pre>
-<p><img src="PartIVML_files/figure-html/dalex_part-1.png" width="672" /></p>
-<p>With the RMSE 2227, we can see that it generalizes well on unseen data.</p>
-<p>Find Important features and reduce the features, i.e modify raw data accordingly.</p>
+# plot(model_performance(xgb_explainer), 
+#      model_performance(rf_explainer), 
+#      model_performance(cubist_explainer)
+#      )</code></pre>
 <pre class="r"><code>vi_xgb &lt;- xgb_explainer %&gt;% 
   variable_importance(loss_function = loss_root_mean_square)
 
@@ -918,12 +917,16 @@ vi_cusit &lt;- cubist_explainer %&gt;%
 
 plot(vi_xgb, vi_rf, vi_cusit)</code></pre>
 <p><img src="PartIVML_files/figure-html/dalexExplainer-1.png" width="672" /></p>
-<p>In all three models the top three influencive variables are Area, Lat, Long.</p>
+<p>In all three models the top three important variables are Area, Lat, Long.</p>
+</div>
+<div id="individual-varaible-performance" class="section level3">
+<h3>Individual varaible performance</h3>
+<p>Lets focus on the important variables again, but specifically with our model and individual variable performance.</p>
 <pre class="r"><code>a &lt;- xgb_explainer %&gt;% variable_response(variable =  &quot;Area&quot;, type = &quot;pdp&quot;)
 b &lt;- xgb_explainer %&gt;% variable_response(variable =  &quot;Lat&quot;, type = &quot;pdp&quot;)
 c &lt;- xgb_explainer %&gt;% variable_response(variable =  &quot;Long&quot;, type = &quot;pdp&quot;)</code></pre>
-<p>Lets focus on the important variables again, but specifically with our model and individual variable performance.</p>
-<p>As area increases the price of property increases.</p>
+<div id="area" class="section level4">
+<h4>Area</h4>
 <pre class="r"><code>as.tibble(a) %&gt;%  
   ggplot(aes(x, y)) + 
   geom_line(col = &quot;darkgreen&quot;) +
@@ -931,6 +934,9 @@ c &lt;- xgb_explainer %&gt;% variable_response(variable =  &quot;Long&quot;, typ
   labs(x = &quot;Area&quot;, y = &quot;Predicted Price&quot;, title = &quot;As area increases HousePrice increases&quot;, subtitle = &quot;Partial Dependency plot&quot;) +
   theme_mi2()</code></pre>
 <p><img src="PartIVML_files/figure-html/AreaChart-1.png" width="672" /></p>
+</div>
+<div id="latitude" class="section level4">
+<h4>Latitude</h4>
 <p>As we move from South Mumbai to North Mumbai, House price declines. Note: 18.9 is south and 19.2 is North</p>
 <pre class="r"><code>as.tibble(b) %&gt;%  
   ggplot(aes(x, y)) + 
@@ -941,6 +947,9 @@ c &lt;- xgb_explainer %&gt;% variable_response(variable =  &quot;Long&quot;, typ
   labs(x = &quot;Lat&quot;, y = &quot;Predicted Price&quot;, title = &quot;As we move from South Mumbai to North Mumbai, House price declines&quot;, subtitle = &quot;Partial Dependency plot&quot;) +
   theme_mi2()</code></pre>
 <p><img src="PartIVML_files/figure-html/SouthNorthChart-1.png" width="672" /></p>
+</div>
+<div id="longitude" class="section level4">
+<h4>Longitude</h4>
 <p>As we move from west to east, House price declines. Not 72.80 is East and 72.95 is west - plot on graph.</p>
 <pre class="r"><code>as.tibble(c) %&gt;%  
   ggplot(aes(x, y)) + 
@@ -951,8 +960,18 @@ c &lt;- xgb_explainer %&gt;% variable_response(variable =  &quot;Long&quot;, typ
   labs(x = &quot;Lat&quot;, y = &quot;Predicted Price&quot;, title = &quot;As we move from West Mumbai to South Mumbai, House price declines&quot;, subtitle = &quot;Partial Dependency plot&quot;) + 
   theme_mi2()</code></pre>
 <p><img src="PartIVML_files/figure-html/WestEastChart-1.png" width="672" /></p>
-<pre class="r"><code>single_variable(xgb_explainer, &quot;Area&quot;) %&gt;% plot()</code></pre>
-<p><img src="PartIVML_files/figure-html/lastplot-1.png" width="672" /></p>
+<!--
+
+
+```r
+single_variable(xgb_explainer, "Area") %>% plot()
+```
+
+<img src="PartIVML_files/figure-html/lastplot-1.png" width="672" />
+
+-->
+</div>
+</div>
 </div>
 
 

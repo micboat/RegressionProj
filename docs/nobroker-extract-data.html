@@ -433,12 +433,20 @@ all_ids &lt;- paste0(baseurl, 1:2) %&gt;% map_df(NB_get_ID_dump)</code></pre>
   select(-14, -16, -17, -18, -21, -22, -26, -28, -30, -32, -34, -36, -38, -40, -42, -43, -44, -46, -48) %&gt;% 
   set_names(&quot;PostedTime&quot;, &quot;Lat&quot;, &quot;Long&quot;, &quot;SaleType&quot;, &quot;HouseType&quot;, &quot;Address&quot;, &quot;Verified&quot;, &quot;LoanVerified&quot;, &quot;Price&quot;, &quot;Negotiable&quot;, &quot;Area&quot;, &quot;Measure&quot;, &quot;MonthlyEMI&quot;, &quot;Bedrooms&quot;, &quot;Bathrooms&quot;, &quot;FloorType&quot;, &quot;Balconies&quot;, &quot;ShortAddress&quot;, &quot;Bldgtype&quot;, &quot;Age&quot;, &quot;OwnedBy&quot;, &quot;Maintanance&quot;, &quot;FloorType2&quot;, &quot;Area2&quot;, &quot;Furnished&quot;, &quot;Facing&quot;, &quot;FloorOn&quot;, &quot;Parking&quot;, &quot;PowerBackup&quot;, &quot;WaterSupply&quot;)</code></pre>
 <p>Here is a glimpse of our final result.</p>
+<pre><code>## -- Attaching packages ------------------------------------------------ tidyverse 1.2.1 --</code></pre>
+<pre><code>## v ggplot2 3.0.0     v purrr   0.2.5
+## v tibble  1.4.2     v dplyr   0.7.6
+## v tidyr   0.8.1     v stringr 1.3.1
+## v readr   1.1.1     v forcats 0.3.0</code></pre>
+<pre><code>## -- Conflicts --------------------------------------------------- tidyverse_conflicts() --
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()</code></pre>
 <pre class="r"><code>cleaned_table %&gt;% 
   head() %&gt;% 
   select(2:6) %&gt;% 
   DT::datatable(rownames = FALSE)</code></pre>
-<div id="htmlwidget-13dc61df96160ede8399" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-13dc61df96160ede8399">{"x":{"filter":"none","data":[["19.076170493565645","19.247946","19.20762825","19.0018583","19.1363246","19.20308359427956"],["72.86627361349178","72.85635260000004","72.83790588","72.83836489999999","72.82765999999992","72.82789750625511"],["Resale","Resale","Resale","Resale","Resale","Resale"],["2 BHK for sale,\nBright apartment","2 BHK for sale,\nVini Garden","1 BHK for sale,\nGreen Arch Housing Socie","1 RK for sale,\nChandrodaya Building","2 BHK for sale,\nDLH Prabhuvandan","1 BHK for sale,\nPooja Enclave CHS"],["Bright Apartment, Bright Apartment, Kolivery Village Ne ...","Vini Garden, Near Mary Immaculate School, Mandpeshwar R ...","Green Arch Housing Society, Anukar Wadi, Sonapor Lane, ...","Chandrodaya Building, Jb Marg, Near Parel Railway Station","Dlh Prabhuvandan, Near Sahakar Shilp Chs, Andheri West ...","Pooja Enclave Chs, Old Link Road"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th>Lat<\/th>\n      <th>Long<\/th>\n      <th>SaleType<\/th>\n      <th>HouseType<\/th>\n      <th>Address<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-4bc563adac2b839f3338" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-4bc563adac2b839f3338">{"x":{"filter":"none","data":[["19.076170493565645","19.247946","19.20762825","19.0018583","19.1363246","19.20308359427956"],["72.86627361349178","72.85635260000004","72.83790588","72.83836489999999","72.82765999999992","72.82789750625511"],["Resale","Resale","Resale","Resale","Resale","Resale"],["2 BHK for sale,\nBright apartment","2 BHK for sale,\nVini Garden","1 BHK for sale,\nGreen Arch Housing Socie","1 RK for sale,\nChandrodaya Building","2 BHK for sale,\nDLH Prabhuvandan","1 BHK for sale,\nPooja Enclave CHS"],["Bright Apartment, Bright Apartment, Kolivery Village Ne ...","Vini Garden, Near Mary Immaculate School, Mandpeshwar R ...","Green Arch Housing Society, Anukar Wadi, Sonapor Lane, ...","Chandrodaya Building, Jb Marg, Near Parel Railway Station","Dlh Prabhuvandan, Near Sahakar Shilp Chs, Andheri West ...","Pooja Enclave Chs, Old Link Road"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th>Lat<\/th>\n      <th>Long<\/th>\n      <th>SaleType<\/th>\n      <th>HouseType<\/th>\n      <th>Address<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 </div>
 </div>
 <div id="source-and-citation" class="section level2">

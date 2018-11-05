@@ -1,8 +1,6 @@
 ---
 title: "Data Cleaning, Quality Enhancing and Feature Enginering"
-output: 
-  html_document:
-    code_folding: show
+output: html_document
 ---
 
 ```{r setup, include=FALSE}

@@ -1,5 +1,4 @@
 base
-corrplot
 tidyverse
 ggplot2
 tibble
@@ -9,12 +8,14 @@ purrr
 dplyr
 stringr
 forcats
+corrplot
+leaflet
 plotly
+bindrcpp
 DT
 broom
 lattice
 caret
-bindrcpp
 plyr
 tidymodels
 rsample

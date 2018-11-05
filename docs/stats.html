@@ -333,23 +333,332 @@ div.tocify {
 </div>
 
 
-<div id="why-seperate" class="section level2">
-<h2>Why seperate</h2>
+<pre class="r"><code>library(tidyverse); library(tidymodels); library(DT)
+
+nb_data &lt;- readRDS(&quot;nb_data.rds&quot;)</code></pre>
+<div id="why-separate-model" class="section level2">
+<h2>Why separate Model</h2>
+<p>Unlike modern modelling technique, linear regression is an explainable model. We can clearly identify the varaibles and their influence on the model.</p>
+<p>Various fields require explainable model, e.g. regulatary requirements, government law etc.</p>
+</div>
+<div id="assumptions" class="section level2">
+<h2>Assumptions</h2>
+<p>Linear regression requires certain assumptions of data. Some of these assumptions can be tested prior the model and some post</p>
+<ol style="list-style-type: decimal">
+<li><p>Data should be normally distrubuted - We have already seen in Data cleaning that the log transformed values of house price is normally distributed.</p></li>
+<li><p>Observation should be above 30 - We have much above the requirement.</p></li>
+<li><p>Hetroskadasticity - This will be tested post model, it simply means that the variance between predicted prices and residuals should be equal at different intervals.</p></li>
+</ol>
+</div>
+<div id="pre-process" class="section level2">
+<h2>Pre-process</h2>
+<pre class="r"><code>set.seed(42)
+
+train_test_split &lt;- initial_split(nb_data)
+
+nb_train &lt;- training(train_test_split)
+nb_test &lt;- testing(train_test_split)
+
+rec_obj &lt;- recipe(HousePriceinK ~ ., data = nb_train) %&gt;%
+  step_knnimpute(all_predictors()) %&gt;%
+  #step_dummy(all_predictors(), -all_numeric()) %&gt;% 
+  step_log(all_outcomes())
+
+prepare_rec &lt;- rec_obj %&gt;% prep(training = nb_train)
+
+train_data &lt;- prepare_rec %&gt;% 
+  bake(nb_train) %&gt;% 
+  select(-HousePriceinK, everything())
+
+test_data &lt;- prepare_rec %&gt;% 
+  bake(nb_train) %&gt;% 
+  select(-HousePriceinK, everything())
+
+x_col &lt;- 1:19 
+y_col &lt;- 20 </code></pre>
 </div>
 <div id="multiple-linear-regression" class="section level2">
 <h2>Multiple Linear Regression</h2>
 </div>
-<div id="assumptions" class="section level2">
-<h2>Assumptions</h2>
+<div id="scatter-plot" class="section level2">
+<h2>Scatter plot</h2>
+<pre class="r"><code>train_data %&gt;% 
+  ggplot(aes(HousePriceinK, Area)) + 
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, se = FALSE)</code></pre>
+<p><img src="stats_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+</div>
+<div id="ggpairs" class="section level2">
+<h2>GGpairs</h2>
+<pre class="r"><code>GGally::ggpairs(train_data)</code></pre>
+<p><img src="stats_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
 </div>
 <div id="model" class="section level2">
 <h2>Model</h2>
+<pre class="r"><code>lm_model &lt;- lm(HousePriceinK ~ ., data = train_data)
+
+summary(lm_model)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = HousePriceinK ~ ., data = train_data)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -2.36341 -0.20328  0.02468  0.22589  2.27115 
+## 
+## Coefficients:
+##                                           Estimate Std. Error t value
+## (Intercept)                              1.890e+02  1.072e+01  17.627
+## Lat                                     -2.142e+00  7.452e-02 -28.740
+## Long                                    -1.922e+00  1.469e-01 -13.081
+## NegotiableNon-negotiable                -1.806e-02  1.501e-02  -1.203
+## Area                                     6.314e-04  2.282e-05  27.666
+## NoofBedrooms                             2.124e-01  1.369e-02  15.515
+## NoofBathrooms                            1.268e-01  1.307e-02   9.698
+## FloorTypeMarble/Granite                  2.008e-01  2.811e-02   7.145
+## FloorTypeMosaic                          2.393e-01  3.505e-02   6.826
+## FloorTypeVitrified Tiles                 1.806e-01  2.619e-02   6.895
+## FloorTypeWooden                          3.007e-01  7.837e-02   3.837
+## NoofBalconies                            1.562e-02  5.477e-03   2.853
+## BldgtypeGated Community Villa            2.344e-01  1.762e-01   1.330
+## BldgtypeIndependent Floor/Builder Floor -2.678e-01  3.099e-02  -8.641
+## BldgtypeIndependent House/Villa         -5.916e-01  2.555e-02 -23.153
+## Age1-3 years old                        -1.073e-01  2.746e-02  -3.907
+## Age3-5 years old                        -1.536e-01  2.320e-02  -6.621
+## Age5-10 years old                       -1.546e-01  1.659e-02  -9.321
+## AgeNewly Constructed                    -4.775e-02  2.279e-02  -2.095
+## AgeUnder Construction                    5.320e-02  3.985e-02   1.335
+## OwnedByRented                            3.352e-02  7.871e-02   0.426
+## Maint_sqft                               2.367e-02  2.009e-03  11.783
+## FurnishedSemi                           -4.787e-02  1.629e-02  -2.938
+## FurnishedUnfurnished                    -1.681e-01  1.708e-02  -9.844
+## FacingNorth                              1.208e-02  1.617e-02   0.747
+## FacingNorth-East                        -3.704e-03  2.321e-02  -0.160
+## FacingNorth-West                        -1.694e-02  3.824e-02  -0.443
+## FacingSouth                             -6.081e-03  1.973e-02  -0.308
+## FacingSouth-East                         1.567e-03  3.402e-02   0.046
+## FacingSouth-West                         6.070e-02  3.989e-02   1.522
+## FacingWest                               2.182e-02  1.643e-02   1.328
+## OnFloor                                  3.133e-03  1.543e-03   2.031
+## NooffloorsinBldg                         1.764e-03  1.141e-03   1.546
+## ParkingBike and Car                      1.539e-01  1.722e-02   8.933
+## ParkingCar                               2.141e-01  2.510e-02   8.527
+## ParkingNone                              1.989e-02  2.049e-02   0.971
+## PowerBackupNone                          1.616e-02  1.277e-02   1.266
+## PowerBackupPartial                       4.661e-03  1.670e-02   0.279
+## WaterSupplyBoth                          2.081e-01  5.380e-02   3.869
+## WaterSupplyCorporation                   1.768e-01  5.349e-02   3.306
+##                                         Pr(&gt;|t|)    
+## (Intercept)                              &lt; 2e-16 ***
+## Lat                                      &lt; 2e-16 ***
+## Long                                     &lt; 2e-16 ***
+## NegotiableNon-negotiable                0.228942    
+## Area                                     &lt; 2e-16 ***
+## NoofBedrooms                             &lt; 2e-16 ***
+## NoofBathrooms                            &lt; 2e-16 ***
+## FloorTypeMarble/Granite                 1.03e-12 ***
+## FloorTypeMosaic                         9.80e-12 ***
+## FloorTypeVitrified Tiles                6.07e-12 ***
+## FloorTypeWooden                         0.000126 ***
+## NoofBalconies                           0.004353 ** 
+## BldgtypeGated Community Villa           0.183448    
+## BldgtypeIndependent Floor/Builder Floor  &lt; 2e-16 ***
+## BldgtypeIndependent House/Villa          &lt; 2e-16 ***
+## Age1-3 years old                        9.46e-05 ***
+## Age3-5 years old                        3.94e-11 ***
+## Age5-10 years old                        &lt; 2e-16 ***
+## AgeNewly Constructed                    0.036220 *  
+## AgeUnder Construction                   0.181922    
+## OwnedByRented                           0.670237    
+## Maint_sqft                               &lt; 2e-16 ***
+## FurnishedSemi                           0.003318 ** 
+## FurnishedUnfurnished                     &lt; 2e-16 ***
+## FacingNorth                             0.455233    
+## FacingNorth-East                        0.873223    
+## FacingNorth-West                        0.657778    
+## FacingSouth                             0.757978    
+## FacingSouth-East                        0.963258    
+## FacingSouth-West                        0.128175    
+## FacingWest                              0.184359    
+## OnFloor                                 0.042307 *  
+## NooffloorsinBldg                        0.122116    
+## ParkingBike and Car                      &lt; 2e-16 ***
+## ParkingCar                               &lt; 2e-16 ***
+## ParkingNone                             0.331670    
+## PowerBackupNone                         0.205735    
+## PowerBackupPartial                      0.780226    
+## WaterSupplyBoth                         0.000111 ***
+## WaterSupplyCorporation                  0.000952 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.3906 on 4941 degrees of freedom
+## Multiple R-squared:  0.7512, Adjusted R-squared:  0.7492 
+## F-statistic: 382.5 on 39 and 4941 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>#broom::tidy(lm_model) %&gt;% datatable(rownames = FALSE, options = list(dom = &quot;t&quot;))</code></pre>
 </div>
+<div id="significant-varaibles" class="section level1">
+<h1>Significant varaibles</h1>
+<p>Inorder to identify the important variables we check the pvalues (Pr(&gt;|t|) column).</p>
+<pre class="r"><code>tibble(
+  Actual = train_data$HousePriceinK %&gt;% exp(),
+  estimate = predict(lm_model, data = train_data[x_col]) %&gt;% exp()
+) %&gt;% 
+  rmse(Actual, estimate)</code></pre>
+<pre><code>## [1] 14600.14</code></pre>
+<pre class="r"><code>anova(lm_model)</code></pre>
+<pre><code>## Analysis of Variance Table
+## 
+## Response: HousePriceinK
+##                    Df  Sum Sq Mean Sq    F value    Pr(&gt;F)    
+## Lat                 1  178.74  178.74  1171.2446 &lt; 2.2e-16 ***
+## Long                1   42.57   42.57   278.9523 &lt; 2.2e-16 ***
+## Negotiable          1    1.19    1.19     7.7782  0.005308 ** 
+## Area                1 1638.42 1638.42 10736.4358 &lt; 2.2e-16 ***
+## NoofBedrooms        1   80.67   80.67   528.6347 &lt; 2.2e-16 ***
+## NoofBathrooms       1   21.70   21.70   142.2046 &lt; 2.2e-16 ***
+## FloorType           4   34.34    8.58    56.2520 &lt; 2.2e-16 ***
+## NoofBalconies       1    1.22    1.22     7.9938  0.004713 ** 
+## Bldgtype            3  178.34   59.45   389.5481 &lt; 2.2e-16 ***
+## Age                 5   16.29    3.26    21.3522 &lt; 2.2e-16 ***
+## OwnedBy             1    0.01    0.01     0.0682  0.793947    
+## Maint_sqft          1   30.65   30.65   200.8303 &lt; 2.2e-16 ***
+## Furnished           2   23.68   11.84    77.6012 &lt; 2.2e-16 ***
+## Facing              7    0.69    0.10     0.6436  0.720071    
+## OnFloor             1    2.47    2.47    16.1782 5.851e-05 ***
+## NooffloorsinBldg    1    0.50    0.50     3.2559  0.071228 .  
+## Parking             3   21.52    7.17    47.0168 &lt; 2.2e-16 ***
+## PowerBackup         2    0.22    0.11     0.7356  0.479247    
+## WaterSupply         2    2.99    1.50     9.8062 5.619e-05 ***
+## Residuals        4941  754.01    0.15                         
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>lm_model_2 &lt;- lm(HousePriceinK ~ . -OwnedBy
+                 -Facing -NooffloorsinBldg
+                 -PowerBackup, data = train_data)
+
+anova(lm_model_2)</code></pre>
+<pre><code>## Analysis of Variance Table
+## 
+## Response: HousePriceinK
+##                 Df  Sum Sq Mean Sq    F value    Pr(&gt;F)    
+## Lat              1  178.74  178.74  1171.7790 &lt; 2.2e-16 ***
+## Long             1   42.57   42.57   279.0796 &lt; 2.2e-16 ***
+## Negotiable       1    1.19    1.19     7.7817  0.005298 ** 
+## Area             1 1638.42 1638.42 10741.3345 &lt; 2.2e-16 ***
+## NoofBedrooms     1   80.67   80.67   528.8759 &lt; 2.2e-16 ***
+## NoofBathrooms    1   21.70   21.70   142.2695 &lt; 2.2e-16 ***
+## FloorType        4   34.34    8.58    56.2776 &lt; 2.2e-16 ***
+## NoofBalconies    1    1.22    1.22     7.9975  0.004703 ** 
+## Bldgtype         3  178.34   59.45   389.7259 &lt; 2.2e-16 ***
+## Age              5   16.29    3.26    21.3619 &lt; 2.2e-16 ***
+## Maint_sqft       1   30.65   30.65   200.9369 &lt; 2.2e-16 ***
+## Furnished        2   23.69   11.84    77.6518 &lt; 2.2e-16 ***
+## OnFloor          1    2.44    2.44    16.0191 6.362e-05 ***
+## Parking          3   21.55    7.18    47.0857 &lt; 2.2e-16 ***
+## WaterSupply      2    3.08    1.54    10.0798 4.279e-05 ***
+## Residuals     4952  755.35    0.15                         
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>tibble(
+  Actual = train_data$HousePriceinK %&gt;% exp(),
+  estimate = predict(lm_model_2, data = train_data[x_col]) %&gt;% exp()
+) %&gt;% 
+  rmse(Actual, estimate)</code></pre>
+<pre><code>## [1] 14635.28</code></pre>
+<pre class="r"><code>df &lt;- broom::augment(lm_model_2) %&gt;% 
+  mutate(index = row_number())</code></pre>
 <div id="assumption-test" class="section level2">
 <h2>Assumption test</h2>
+<p><a href="https://www.statmethods.net/stats/rdiagnostics.html" class="uri">https://www.statmethods.net/stats/rdiagnostics.html</a></p>
+<p><a href="https://www.r-bloggers.com/regression-diagnostics-with-r/" class="uri">https://www.r-bloggers.com/regression-diagnostics-with-r/</a></p>
+<p><a href="https://data.library.virginia.edu/diagnostic-plots/" class="uri">https://data.library.virginia.edu/diagnostic-plots/</a></p>
+<pre class="r"><code>plot(lm_model_2)</code></pre>
+<p><img src="stats_files/figure-html/unnamed-chunk-11-1.png" width="672" /><img src="stats_files/figure-html/unnamed-chunk-11-2.png" width="672" /><img src="stats_files/figure-html/unnamed-chunk-11-3.png" width="672" /><img src="stats_files/figure-html/unnamed-chunk-11-4.png" width="672" /></p>
 </div>
-<div id="post-hoc-analysis" class="section level2">
-<h2>Post hoc analysis</h2>
+<div id="normal-distribution-of-error" class="section level2">
+<h2>Normal Distribution of error</h2>
+<pre class="r"><code>a &lt;- tibble(
+  x = fitted.values(lm_model_2),
+  y = residuals(lm_model_2)
+) %&gt;% 
+  ggplot(aes(sample = y)) + geom_qq() + geom_qq_line()
+
+b &lt;- tibble(
+  x = fitted.values(lm_model_2),
+  y = residuals(lm_model_2)
+) %&gt;% 
+  ggplot(aes(y)) + geom_histogram()
+
+
+gridExtra::grid.arrange(a, b, ncol = 2)</code></pre>
+<pre><code>## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<p><img src="stats_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<div id="hetroskadasticity" class="section level3">
+<h3>Hetroskadasticity</h3>
+<p>Means something is missing, probably interaction</p>
+<pre class="r"><code>tibble(
+  x = fitted.values(lm_model_2),
+  y = residuals(lm_model_2)
+) %&gt;% 
+  ggplot(aes(x, y)) + 
+  geom_point() + 
+  labs(x = &quot;Fitted Values&quot;, y = &quot;Residuals&quot;, title = &quot;Hetroskadasticity&quot;)</code></pre>
+<p><img src="stats_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+</div>
+</div>
+</div>
+<div id="cooks-distance" class="section level1">
+<h1>Cooks Distance</h1>
+<p><a href="https://www.r-bloggers.com/regression-diagnostic-plots-using-r-and-plotly/" class="uri">https://www.r-bloggers.com/regression-diagnostic-plots-using-r-and-plotly/</a></p>
+<p><a href="https://stackoverflow.com/questions/48964719/how-to-remove-outliers-from-cooks-distance-in-r" class="uri">https://stackoverflow.com/questions/48964719/how-to-remove-outliers-from-cooks-distance-in-r</a></p>
+<pre class="r"><code>#If this is less than 4 then keep else discard
+#plot(cooks.distance(lm_model_2))
+
+tibble(
+  x = cooks.distance(lm_model_2),
+  y = rstandard(lm_model_2)
+) %&gt;% 
+  ggplot(aes(x, y)) + 
+  geom_point()</code></pre>
+<p><img src="stats_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+<pre class="r"><code>#?cooks.distance</code></pre>
+</div>
+<div id="multicollinearity" class="section level1">
+<h1>Multicollinearity</h1>
+<p>VIF is in danger zone if bigger than 10 and tolerance if less than 0.1</p>
+<pre class="r"><code>car::vif(lm_model_2)</code></pre>
+<pre><code>##                   GVIF Df GVIF^(1/(2*Df))
+## Lat           1.031877  1        1.015814
+## Long          1.030291  1        1.015033
+## Negotiable    1.008291  1        1.004137
+## Area          3.820927  1        1.954719
+## NoofBedrooms  3.887328  1        1.971631
+## NoofBathrooms 3.281660  1        1.811535
+## FloorType     1.154289  4        1.018097
+## NoofBalconies 1.191067  1        1.091360
+## Bldgtype      1.242399  3        1.036836
+## Age           1.451194  5        1.037941
+## Maint_sqft    1.134044  1        1.064915
+## Furnished     1.206091  2        1.047961
+## OnFloor       1.373204  1        1.171838
+## Parking       1.234886  3        1.035789
+## WaterSupply   1.054138  2        1.013268</code></pre>
+</div>
+<div id="autocorrelation" class="section level1">
+<h1>Autocorrelation</h1>
+<p>residuals from a linear model are correlated or not. A stat of 2 is bad -approx.</p>
+<pre class="r"><code>car::durbinWatsonTest(lm_model_2)</code></pre>
+<pre><code>##  lag Autocorrelation D-W Statistic p-value
+##    1     -0.02249286      2.044448   0.116
+##  Alternative hypothesis: rho != 0</code></pre>
+</div>
+<div id="near-zero-variance-and-linear-predictors" class="section level1">
+<h1>Near zero variance and linear predictors</h1>
+<p>ALready done!</p>
+</div>
+<div id="interaction" class="section level1">
+<h1>Interaction?</h1>
 </div>
 
 

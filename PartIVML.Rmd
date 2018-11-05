@@ -4,8 +4,6 @@ output:
   html_document:
     toc: true
     toc_depth: 4
-    collapsed: true
-    code_folding: show
 ---
 
 ```{r setup, include=FALSE}
@@ -13,8 +11,10 @@ knitr::opts_chunk$set(echo = TRUE, cache=TRUE, message=FALSE, warning=FALSE)
 ```
 
 
+Here we will prepare various regression models for predicting house prices and choose a final model.
+We will start off in `tidymodel` style and later use the famous `caret` package to build model.
 
-In this phase we will be preparing various regression models for predicting house prices.
+This is a long article as we follow a step by step detailed instruction. I would recommend not to miss the end part explaining black box model, a relatively new concept that helps us to decode black box models.
 
 ## Which model to select?
 
@@ -28,20 +28,21 @@ Borrowed from Aurélien Géron "Hands on ML" book, we will use the following ste
 
 ```{r libraries}
 
-library(plyr);library(tidyverse); library(caret); library(tidymodels); library(ranger)
+#plyr library is just to avoid conflicts with dplyr
+
+library(plyr);library(tidyverse); library(caret); library(tidymodels); library(DT)
 
 library(ranger); library(xgboost); library(glmnet); library(e1071); library(pls); library(Cubist); library(earth); library(Cubist); library(DALEX); library(breakDown)
 
 nb_data <- readRDS("nb_data.rds")
 
-
 ```
+
+Download nb_data.rds
 
 ## Split Data
 
-Lets split our data in test and training set. We will use the rsample package for split 
-
-Note:- nb_data is already loaded in our workspace. It can be downloaded from here.
+Lets split our data in test and training set. We will use the rsample package for split.  
 
 ```{r split}
 
@@ -57,28 +58,16 @@ nb_test <- testing(train_test_split)
 
 ## Pre Process
 
-Lets impute missing values. We alrady have the missing value stats with us (from module 1), lets recollect it.
+Lets impute missing values. We already have the missing value information from data cleaning.
 
-| Features    | Missing values |
-|-------------|----------------|
-| FloorType   | 209            |
-| Facing      | 1153           |
-| PowerBackup | 4229           |
-| WaterSupply | 116            |
-
-Since we will run multiple models, first lets create a structure for our model i.e. set preprocessing steps to our model.
+As we will prepare multiple models, lets create a structure for our model i.e. set preprocessing steps to our model.
 
 ```{r recipe}
 rec_obj <- recipe(HousePriceinK ~ ., data = nb_train) %>% #1
   step_knnimpute(all_predictors()) %>%  #2
-  #step_other(NoofBathrooms, NoofBalconies, threshold = 0.05) %>%
-  step_dummy(all_predictors(), -all_numeric()) #%>% #3
-  #step_log(all_outcomes()) %>% 
-  #prep(training = nb_train) #4
+  step_dummy(all_predictors(), -all_numeric()) #3
 
-#step_bs(Lat, Long)
-
-prepare_rec <- rec_obj %>% prep(training = nb_train)
+prepare_rec <- rec_obj %>% prep(training = nb_train) #4
 
 train_data <- prepare_rec %>% #5
   bake(nb_train) %>% 
@@ -88,18 +77,16 @@ test_data <- prepare_rec %>% #5
   bake(nb_train) %>% 
   select(-HousePriceinK, everything())
 
-x_col <- 1:35
-y_col <- 36
+x_col <- 1:39 #35
+y_col <- 40 #36
 
 ```
 
-Let's understand what are we doing in above code!
-
-1 - Creating a structure for our model, the data argument is just to identify variables.
-2 - Impute missing value through KNN algorithim, the default K is 5.
-3 - Convert nominal data into numeric hot encoding.
-4 - Run preprocess step on our data
-5 - Apply our preprossing steps on training and test set.
+1. Creating a structure for our model, the data argument is just to identify variables.  
+2. Impute missing value through KNN algorithm, the default value is 5.  
+3. Convert nominal data into numeric hot encoding.  
+4. Run reprocess step on our data.  
+5. Apply our prepossessing steps on training and test set.  
 
 We can apply various preprocessing steps such as stp_center, step_scale, etc from the [recipes](https://tidymodels.github.io/recipes/index.html) package.
 
@@ -116,10 +103,10 @@ We will train the following ten models; the applied predictive modeling book sug
 7)  Principal Component Regression (PCR)
 8)  Cubist
 9)  Multivariate Adaptive Regression Splines (MARS)
-10) Other 
+10) Other (Polynomial?)
+11) Linear Regression [see here](#stats)
 
-Click here to move to resutls
-
+Click [here](#compare_performance) to directly move to results instead!
 
 #### Random Forest
 Random Forests work by training many Decision Trees on random subsets of the features, then averaging out their predictions.
@@ -142,6 +129,7 @@ Gradient Boosting works by sequentially adding predictors to an ensemble, each o
 library(xgboost)
 
 xgb_model <- xgboost(data = as.matrix(train_data[x_col]), label = as.matrix(train_data[y_col]), nrounds = 500, verbose = 0)
+
 xg_prediction <- xgb_model %>% 
   predict(as.matrix(train_data[x_col]))
 
@@ -215,7 +203,7 @@ pcr_predict <- pcr_model %>%
 
 
 #### Cubist
-Like xgBoost, Cubist is a boosting techinque plus it also performs neighbour based instance techinque to get result. 
+Like xgBoost, Cubist is a boosting technique plus it also performs neighbor based instance technique to get result. 
 
 ```{r single_cubist}
 library(Cubist)
@@ -255,7 +243,9 @@ mars_predict <- mars_model %>%
 For a regression problem, the Root Mean Square Error - RMSE is a best indicator of performance
 
 ```{r combine}
-# Since house price was transformed to log values, we convert it back using exp()
+
+# Collate all predicted values
+
 results <- tibble(
   Actual = train_data$HousePriceinK,
   RF = rf_prediction,
@@ -270,6 +260,7 @@ results <- tibble(
   #MLR = lm_predict %>% as.vector()
 )
 
+# Calculate RMSE from yardstick::rmse
 
 RMSE <- tibble(
   RMSE_RF = results %>% rmse(Actual, RF),
@@ -282,44 +273,43 @@ RMSE <- tibble(
   RMSE_Cubist = results %>% rmse(Actual, cubist),
   RMSE_MARS = results %>% rmse(Actual, MARS)
   #RMSE_MLR = results %>% rmse(Actual, MLR),
-  
 ) %>% 
   gather(key = "Model", value = "RMSE") %>% 
   arrange(RMSE)
 
-RMSE
+RMSE %>% 
+  datatable(rownames = FALSE, options = list(dom = "t")) %>% 
+  formatRound(2)
 
 ```
 
-```{r clean_env}
+```{r clean_env, echo=FALSE}
 rm(results, mars_model, mars_predict, cubist_predict, cubist_model, pcr_model, pcr_predict, svr_model, svr_predict, elastic_model, elastic_predict, lasso_model, lasso_predict, ridge_model, ridge_predict, xgb_model, xg_prediction, rf_model, rf_prediction, train_test_split)
 ```
 
 
-With default values of the model, we can see that xgBoost turns out to provide the best performance. But these values do not provide a measurement of spread.
+With default values of the model, we notice that xgBoost provides the best performance, but presumably it also overfits.
 
-Next we will use cross validation technique to evaluate overfitting of models and imporve model performance. Further to that we will check if tuning model hyperparameters could help to increase performance.
+Next, lets use cross validation technique to evaluate over-fitting of models. Later on, we will tune hyper-parameters of models to check for better performance.
 
 ## Cross Validation
 
-Lets create cross validation samples of our data. We will create 10 cross validation set.
+We will create a 10 cross validation set, each repeated 10 times.   [Here](https://www.kaggle.com/dansbecker/cross-validation) is a short introduction for cross validation.
 
 ```{r samples}
 
 set.seed(42)
 
-#Create 10 splits of data, repeat it for 5 times i.e create 50 samples.
+# Create 10 splits of data, repeat it for 5 times i.e create 50 samples.
 cv_train <- nb_train %>% vfold_cv(v = 10, repeats = 10)
 
-first_sample <- cv_train$splits[[1]]
+# First set
+dim(cv_train$splits[[1]])
 
-dim(first_sample)
 
 ```
 
-As we see for a single sample we have total 4986 observation, this will create approx 4487 (90%) observation to perform training and approx 499 (10%) observation for testing purpose.
-
-Recipe should be applied on assessment set, so that blanks are imputed accordingly.
+In our train set we have 4,986 observation, with cross validation approx 4487 (90%) observation will be used to train and approx 499 (10%) observation will be used to test. This entire process will be repeated 10 times
 
 ```{r read_multiple_model, echo=FALSE}
 cv_train <- readRDS("cv_rsample.rds")
@@ -328,10 +318,19 @@ cv_train <- readRDS("cv_rsample.rds")
 
 ```{r multiple_model, eval=FALSE}
 
+# Function Start
+
 multiple_model <- function(split, ...){
 
-cv_trainset <- prepare_rec %>% bake(analysis(split)) %>% select(-HousePriceinK, everything())
-cv_testset <- prepare_rec %>% bake(assessment(split)) %>% select(-HousePriceinK)
+cv_trainset <- prepare_rec %>% 
+  bake(analysis(split)) %>% 
+  select(-HousePriceinK, everything())
+
+cv_testset <- prepare_rec %>% 
+  bake(assessment(split)) %>% 
+  select(-HousePriceinK)
+
+# This looks conjusted, all we doing is repeating the single model with new cross validation data sets.
 
 rfmod <- ranger(HousePriceinK ~ ., data = cv_trainset, num.trees = 500)
 xgmod <- xgboost(data = as.matrix(cv_trainset[x_col]), label = as.matrix(cv_trainset[y_col]), nrounds = 500, verbose = 0)
@@ -343,6 +342,9 @@ pcrmodel <- pcr(HousePriceinK ~ ., data = cv_trainset)
 cubistmod <- cubist(x = as.matrix(train_data[x_col]), y = as.matrix(train_data[y_col]), committees = 5)
 marsmod <- earth(HousePriceinK ~ ., data = cv_trainset)
 #lmmod <- lm(HousePriceinK ~ ., data = cv_trainset)
+
+
+# Store predictions on each cross validation samples
 
 cv_results <- tibble(
   actual = assessment(split) %>% select(HousePriceinK) %>% pull(),
@@ -374,18 +376,23 @@ cv_RMSE <- tibble(
 
 }
 
+# Function End
+
+# Run the multiple model function on each cross validation split
 cv_train$RMSE <- map(cv_train$splits, multiple_model)
 
 cv_train <- cv_train %>%
   unnest(RMSE)
 
-saveRDS(cv_train, "cv_rsample.rds")
+#saveRDS(cv_train, "cv_rsample.rds")
 
 ```
 
 ## Post-hoc Analysis
 
-Lets convert the RMSE dataset into tidy format and identify some statistics.
+### Model statistics
+
+We now have 50 RMSE scores, let's analyze.
 
 ```{r postHoc_summary}
 
@@ -398,20 +405,12 @@ stacked_rmse %>%
             SD = sd(statistic), 
             Min = min(statistic), 
             Max = max(statistic)
-            )
+            ) %>% 
+  datatable(rownames = FALSE, options = list(dom = "t")) %>% 
+  DT::formatRound(2:5)
 ```
 
-Well, here we have quite a lot of information to infer decision.
-
-Null Hypothesis :- 
-
-Alternate Hypothesis :- 
-
-```{r anova_test}
-aov(log(statistic) ~ model, data = stacked_rmse) %>% anova()
-```
-
-Lets graphically view these statistics.
+### Graphical Representaion of models
 
 ```{r graph_one}
 stacked_rmse %>% 
@@ -424,11 +423,11 @@ stacked_rmse %>%
   theme(legend.position = "none")
 ```
 
+From the above visualization we observe that cubist, xgboost and RandomForest are the top three models. Although Cubist has the best performance but it some variations.
 
+For this project we will select this three models and optimize their performance to see if they can be improved further.
 
-We started with ten models, and are now left with five! One intresting point to note here is all Linear modelling techniques are dropped.
-
-Although Cubist has the best performance but it some variations.
+<!--
 
 Lets have a different graphical view of our selected models.
 
@@ -454,10 +453,13 @@ stacked_rmse %>%
 
 ```
 
+-->
 
 ## Hyperparameters tuning
 
-Now we have finalized five models, we will now tune the hyperparameters of these models and identify the best techniques, again using cross-validation.
+Various models needs manual parameters, like KNN needs number of nearest neighbor, randomForest needs number of trees to build. We need to tune this hyper-parameters and identify the best ones that optimize our results.
+
+We will now tune the hyper-parameters of the selected three models to identify the best parameters.
 
 ```{r delete_it, message=FALSE, warning=FALSE, echo = FALSE, eval=FALSE}
 # library(parallel)
@@ -466,6 +468,7 @@ Now we have finalized five models, we will now tune the hyperparameters of these
 # registerDoParallel(cluster)
 ```
 
+### Cross validation 
 
 ```{r defineControl}
 set.seed(42)
@@ -477,7 +480,8 @@ ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 10, savePredi
 
 #### Cubist
 
-At first iteration we use committees 1, 10, 50, 100.
+Cubist has two hyper-parameters, committees and neighbors.
+
 ```{r read_CubistTrain, echo = FALSE}
 cubist_train <- readRDS("cubist_cv_model.rds")
 
@@ -515,9 +519,10 @@ tibble(
 
 ```
 
-When 100, 500 and 1000 are used 100 gives rmse 2305.542
 
 #### xgBoost
+
+The xgboost model has number of rounds, maximum depth to build, eta, gamma, column sample by tree, minimum child weight and subsample hyper-parameters.
 
 ```{r read_XGBTrain, echo = FALSE}
 xgb_train <- readRDS("xgb_cv_model.rds")
@@ -563,6 +568,8 @@ tibble(
 
 #### RandomForest
 
+RandomForest has mtry - number of features to use, splitrule and minimum node size hyper-parameters.
+
 ```{r readRFTrain, echo=FALSE}
 rf_train <- readRDS("rf_cv_model.rds")
 ```
@@ -604,7 +611,9 @@ tibble(
 
 ```
 
-Group RMSE
+Note: The `caret` package supports 256 models, the hyper parameters of these models can be found here.
+
+###  Group RMSE
 
 ```{r group_RMSE}
 
@@ -626,9 +635,12 @@ optimize_RMSE %>%
   arrange(RMSE)
 ```
 
+In the above table we observe that after tuning the hyper-parameters of our models, xgboost has the best performance. Before we zero down on this model, lets try the model with different seeds.
 
-## Try with different seeds
-Now that we have drilled down to a single model, lets try it with different seeds.
+### Different seeds
+
+Remember, xgboost creates sample of our datasets. We can use seeds to reproduce our results.
+We will use various seeds to test if initial seed had any influence on our model.
 
 ```{r read_seeds_model, echo = FALSE}
 with_seeds <- readRDS("with_seeds_model.rds")
@@ -659,7 +671,7 @@ multiple_seed <- function(seedno, recipe, data, ...){
   return(blank)
 }
 
-with_seeds <- map(c(1, 100), multiple_seed, recipe = rec_obj, data = nb_data)
+with_seeds <- map(c(1, 100, 500, 1000), multiple_seed, recipe = rec_obj, data = nb_data)
 
 
 ```
@@ -682,12 +694,9 @@ rmse_various_seeds %>%
 
 ## Final Model
 
-With above we conclude that xgBoost generalizes well on training dataset and is the final model that should be selected.
+From above, we observe that xgBoost gives the best performance on training dataset. For now, we select it as our final model and use it on test data to evaluate generalization.
 
-We will hot the final nail in the cofin by seeing how does it perform on unseen data.
-
-
-## Generalization
+### Generalization
 
 ```{r generalization}
 
@@ -698,7 +707,15 @@ tibble(
   rmse(Actual, Prediction)
 ```
 
-## Identify important varaibles.
+As the RMSE on the test data is similar to the one of train data, we can conclude that it generalize well on unseen data.
+
+## Explaining Black box models
+
+
+
+### Identify important varaibles.
+
+Even though we have finalized our model, just for the sake of this post we will identify important variables of our top three models
 
 ```{r dalex_part}
 library(DALEX); library(breakDown)
@@ -712,16 +729,12 @@ rf_explainer <- rf_train %>%
 cubist_explainer <- cubist_train %>% 
   explain(label = "Cubist", data = train_data, y = train_data$HousePriceinK)
 
-plot(model_performance(xgb_explainer), 
-     model_performance(rf_explainer), 
-     model_performance(cubist_explainer)
-     )
+# plot(model_performance(xgb_explainer), 
+#      model_performance(rf_explainer), 
+#      model_performance(cubist_explainer)
+#      )
 ```
 
-With the RMSE 2227, we can see that it generalizes well on unseen data.
-
-
-Find Important features and reduce the features, i.e modify raw data accordingly.
 
 ```{r dalexExplainer}
 
@@ -738,12 +751,15 @@ plot(vi_xgb, vi_rf, vi_cusit)
 
 ```
 
-In all three models the top three influencive variables are Area, Lat, Long.
+In all three models the top three important variables are Area, Lat, Long.
 
 ```{r pred_breakdown, echo = FALSE, eval = FALSE}
 prediction_breakdown(xgb_explainer, train_data[1,-36]) %>% plot()
 ```
 
+### Individual varaible performance 
+
+Lets focus on the important variables again, but specifically with our model and individual variable performance.
 
 ```{r explainer_charts}
 
@@ -753,10 +769,7 @@ c <- xgb_explainer %>% variable_response(variable =  "Long", type = "pdp")
 
 ```
 
-
-Lets focus on the important variables again, but specifically with our model and individual variable performance.
-
-As area increases the price of property increases.
+#### Area
 
 ```{r AreaChart}
 as.tibble(a) %>%  
@@ -767,6 +780,7 @@ as.tibble(a) %>%
   theme_mi2()
 ```
 
+#### Latitude
 
 As we move from South Mumbai to North Mumbai, House price declines. 
 Note: 18.9 is south and 19.2 is North
@@ -780,6 +794,8 @@ as.tibble(b) %>%
   labs(x = "Lat", y = "Predicted Price", title = "As we move from South Mumbai to North Mumbai, House price declines", subtitle = "Partial Dependency plot") +
   theme_mi2()
 ```
+
+#### Longitude
 
 As we move from west to east, House price declines.
 Not 72.80 is East and 72.95 is west - plot on graph.
@@ -816,11 +832,13 @@ as.tibble(c) %>%
 ```
 
 
+<!--
+
 ```{r lastplot}
 single_variable(xgb_explainer, "Area") %>% plot()
 ```
 
-
+-->
 
 
 
